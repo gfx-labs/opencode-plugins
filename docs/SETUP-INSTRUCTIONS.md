@@ -10,8 +10,11 @@ npm install @gfxlabs/opencode-plugins-otel
 
 Create `~/.config/opencode/otel.json` with your user identity and any shared auth headers. This applies to all projects.
 
+Add `"$schema"` to get validation and autocomplete in your editor:
+
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/main/packages/opencode-otel/otel.schema.json",
   "user_id": "your-username",
   "organization": "your-org",
   "endpoint": "https://otel-collector.example.com",

@@ -11,13 +11,18 @@
   "license": "(Unlicense OR MIT)",
   "files": [
     "dist",
-    "!dist/tsconfig.tsbuildinfo"
+    "!dist/tsconfig.tsbuildinfo",
+    "otel.schema.json"
   ],
   "scripts": {
-    "build": "pkgroll",
+    "generate:schema": "tsx scripts/generate-schema.ts",
+    "build": "npm run generate:schema && pkgroll",
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }

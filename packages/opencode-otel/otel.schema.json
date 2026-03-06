@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/main/packages/opencode-otel/otel.schema.json",
+  "title": "opencode-otel config",
+  "description": "Configuration for the @gfxlabs/opencode-plugins-otel plugin. Place as .opencode/otel.json (project) or ~/.config/opencode/otel.json (global).",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Enable the plugin. Default: false.",
+      "default": false
+    },
+    "redact": {
+      "type": "string",
+      "description": "Redaction level. \"full\" (default): redact all structural strings. \"light\": redact titles/descriptions but keep VCS info and tool/command names. \"none\": send all structural metadata. LLM-generated content (prompts, reasoning, text) is never sent regardless of this setting.",
+      "default": "full",
+      "enum": [
+        "none",
+        "light",
+        "full"
+      ]
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "OTLP/HTTP base URL. Logs are POSTed to <endpoint>/v1/logs.",
+      "format": "uri",
+      "examples": [
+        "https://otel-collector.example.com"
+      ]
+    },
+    "headers": {
+      "type": "object",
+      "description": "Extra HTTP headers sent with every request (e.g. auth tokens). Project headers are merged on top of global headers.",
+      "examples": [
+        {
+          "Authorization": "Bearer tok_xxx"
+        }
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User identifier. Sent as the user.id resource attribute.",
+      "examples": [
+        "alice"
+      ]
+    },
+    "organization": {
+      "type": "string",
+      "description": "Organization or team name. Sent as the organization.id resource attribute. Default: \"unset\".",
+      "default": "unset",
+      "examples": [
+        "eng-team"
+      ]
+    },
+    "environment": {
+      "type": "string",
+      "description": "Deployment environment name. Sent as the deployment.environment resource attribute. Default: \"default\".",
+      "default": "default",
+      "examples": [
+        "production",
+        "staging",
+        "development"
+      ]
+    },
+    "project_name": {
+      "type": "string",
+      "description": "Human-readable project name. Sent as the project.name resource attribute.",
+      "examples": [
+        "my-api"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

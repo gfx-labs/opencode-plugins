@@ -41,7 +41,7 @@ Configuration is loaded from two locations and merged (project overrides global 
 | `enabled` | `boolean` | Enable the plugin. Default: `false` |
 | `endpoint` | `string` | OTLP/HTTP base URL. Logs are sent to `<endpoint>/v1/logs` |
 | `headers` | `Record<string, string>` | Extra HTTP headers (e.g. auth tokens) |
-| `redact` | `boolean` | Replace sensitive strings with `<REDACTED>`. Default: `false` |
+| `redact` | `"none" \| "light" \| "full"` | Redaction level. Default: `"full"`. See [Redaction](#redaction) below |
 | `user_id` | `string` | User identifier added as `user.id` resource attribute |
 | `organization` | `string` | Organization ID. Default: `"unset"` |
 | `environment` | `string` | Deployment environment name. Default: `"default"` |
@@ -96,8 +96,10 @@ Every log record includes these resource-level attributes:
 | `deployment.environment` | Config `environment` or `"default"` |
 | `project.id` | Always from opencode `project.id` |
 | `project.name` | Config `project_name` (if set) |
-
 | `user.id` | Config `user_id` (if set) |
+| `vcs.repository.url.full` | Git remote origin URL (if detected) |
+| `vcs.ref.head.name` | Git branch name at startup (if detected) |
+| `vcs.ref.head.revision` | Git commit SHA at startup (if detected) |
 
 ### Events
 
@@ -117,7 +119,7 @@ The plugin listens to opencode platform events and emits corresponding OTLP log 
 | `message.removed` | A message was removed/undone |
 | `message.part.updated` | A message part changed (text, reasoning, tool call, step, subtask, etc.) |
 | `message.part.removed` | A message part was removed |
-| `user.prompt` | Synthetic event: user's text prompt content, length, and line count |
+| `user.prompt` | Synthetic event: user's text prompt length and line count |
 | `api.request` | Synthetic event: assistant message completion with cost and token breakdown |
 | `command.executed` | A slash command was executed |
 | `file.edited` | A file was edited |
@@ -160,15 +162,15 @@ The `message.part.updated` event captures type-specific attributes. All parts in
 
 | Part type | Key attributes |
 |---|---|
-| `text` | `text.length`, `text.lines`, `text.content`, `text.synthetic`, `text.ignored`, `text.time.start`, `text.time.end`, `text.duration_ms` |
-| `reasoning` | `reasoning.length`, `reasoning.lines`, `reasoning.content`, `reasoning.time.start`, `reasoning.time.end`, `reasoning.duration_ms` |
-| `tool` | `tool.name`, `tool.call_id`, `tool.state`, `tool.input_size`, `tool.output_size`, `tool.output_lines`, `tool.duration_ms`, `tool.success`, `tool.error`, `tool.time.compacted`, `tool.attachments` |
+| `text` | `text.length`, `text.lines`, `text.synthetic`, `text.ignored`, `text.time.start`, `text.time.end`, `text.duration_ms` |
+| `reasoning` | `reasoning.length`, `reasoning.lines`, `reasoning.time.start`, `reasoning.time.end`, `reasoning.duration_ms` |
+| `tool` | `tool.name`, `tool.call_id`, `tool.state`, `tool.input_size`, `tool.output_size`, `tool.output_lines`, `tool.duration_ms`, `tool.success`, `tool.time.compacted`, `tool.attachments` |
 | `step-start` | `step.snapshot` |
 | `step-finish` | `step.reason`, `step.cost`, `step.snapshot`, `step.tokens.*` |
 | `snapshot` | `snapshot.id` |
 | `subtask` | `subtask.agent`, `subtask.description`, `subtask.prompt.length`, `subtask.prompt.lines` |
 | `agent` | `agent.name` |
-| `retry` | `retry.attempt`, `retry.error.name`, `retry.error.message`, `retry.error.status_code`, `retry.error.retryable`, `retry.time.created` |
+| `retry` | `retry.attempt`, `retry.error.name`, `retry.error.status_code`, `retry.error.retryable`, `retry.time.created` |
 | `compaction` | `compaction.auto` |
 | `file` | `file.mime`, `file.name`, `file.source.type`, `file.source.length`, `file.source.lines` |
 | `patch` | `patch.hash`, `patch.files` |
@@ -190,23 +192,49 @@ The `tool.executed` event (from the `tool.execute.after` hook) captures:
 
 ## Redaction
 
-When `redact: true` is set in config, the following values are replaced with `<REDACTED>`:
+### Content never sent
 
-- Session titles
-- User prompt content
-- Text and reasoning part content
-- Tool output titles and error messages
-- Command arguments
-- Error messages
-- Subtask descriptions
+LLM-generated content is **never sent** regardless of redaction level. This includes:
+
+- User prompt text
+- Assistant text and reasoning content
+- Tool error messages
+- Session/message error messages
 - Retry error messages
-- Permission titles
+
+These fields are omitted entirely (not replaced with a placeholder). Only structural metrics like length and line count are sent.
+
+### Redaction levels
+
+The `redact` config field controls how much structural metadata is sent. Default: `"full"`.
+
+For backwards compatibility, `redact: true` is treated as `"full"` and `redact: false` as `"none"`.
+
+| Level | Titles & descriptions | Structural metadata | Numeric/IDs |
+|---|---|---|---|
+| `"full"` (default) | `<REDACTED>` | `<REDACTED>` | Sent |
+| `"light"` | `<REDACTED>` | Sent | Sent |
+| `"none"` | Sent | Sent | Sent |
+
+**Titles & descriptions** (redacted at `light` and `full`):
+- Session titles (`session.title`)
+- Tool result titles (`tool.title`)
+- Subtask descriptions (`subtask.description`)
+- Permission titles (`permission.title`)
+
+**Structural metadata** (redacted at `full` only):
+- Git branch names (`vcs.branch`, `vcs.ref.head.name`)
+- Git remote URL (`vcs.repository.url.full`)
+- Tool names (`tool.name`)
+- Command arguments (`command.arguments`)
 - File names (`file.name`)
-- Git branch names (`vcs.branch`)
 
-**Note:** Filesystem paths are never sent, regardless of redaction setting. The plugin does not transmit working directories, file paths, or project worktree paths.
+**Always sent** (never redacted):
+- Token counts, cost values, timing data
+- IDs, types, states, status codes
+- Numeric metrics (lengths, line counts, sizes)
 
-Token counts, cost values, timing data, and structural identifiers (IDs, types, states) are never redacted.
+**Note:** Filesystem paths are never sent, regardless of redaction level. The plugin does not transmit working directories, file paths, or project worktree paths.
 
 ## Protocol
 

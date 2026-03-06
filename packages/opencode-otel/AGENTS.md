@@ -7,7 +7,7 @@ opencode-ai platform. It captures session lifecycle, message flow, tool executio
 and cost metrics as OTLP/HTTP JSON log records and ships them to any OTel-compatible
 collector.
 
-- **Single source file:** `src/index.ts` (~780 lines)
+- **Source files:** `src/index.ts`, `src/config.ts`, `src/handlers.ts`, `src/otel.ts`, `src/git.ts`
 - **Single export:** `OtelPlugin` (type: `Plugin` from `@opencode-ai/plugin`)
 - **Build:** `pkgroll` producing ESM-only output (`dist/index.mjs` + `dist/index.d.mts`)
 - **No runtime dependencies** -- only a peer dep on `@opencode-ai/plugin >=1.0.0`
@@ -18,8 +18,9 @@ The plugin is structured as a single async factory function (`OtelPlugin`) that:
 
 1. Loads and merges config from two JSON files (project + global)
 2. Resolves env var overrides (`OPENCODE_OTEL_ENABLED`, `OPENCODE_OTEL_ENDPOINT`, `OPENCODE_OTEL_HEADERS`)
-3. Builds OTLP resource attributes
-4. Returns two hooks: `event` and `tool.execute.after`
+3. Detects git repo info (remote URL, branch, commit SHA) by reading `.git` files
+4. Builds OTLP resource attributes (including git info when available)
+5. Returns two hooks: `event` and `tool.execute.after`
 
 ### Key internal components
 
@@ -27,6 +28,7 @@ The plugin is structured as a single async factory function (`OtelPlugin`) that:
 |---|---|---|
 | `OtelConfig` interface + `parseConfig` / `loadConfig` | 1-100 | Config loading, validation, two-layer merge |
 | `OtelLogRecord` / `OtelExportLogsRequest` interfaces | 20-50 | OTLP/HTTP JSON wire format types |
+| `detectGitInfo` | ~80 | Reads `.git` directory to detect remote URL, branch, commit SHA (no subprocesses) |
 | Helper functions (`attrs`, `makeLogRecord`, `buildExportRequest`, `str`, `bool`, `strRecord`, `lineCount`, `safeStringifyLength`) | 50-160 | Type-safe attribute construction, record building, size/line measurement |
 | Buffer/flush/drain system (`enqueue`, `flush`, `drain`, `send`) | ~50 | Batched delivery: 100-record or 5-second flush, drain on terminal events |
 | `getModelCosts` / `estimateCost` | ~40 | Lazy-loaded per-token cost rates from `client.provider.list()` |
@@ -69,16 +71,29 @@ The plugin computes derived metrics for telemetry:
   to await all in-flight `fetch` calls before the process exits
 - Failed sends log via `client.app.log` but never throw
 
-### Redaction
+### Content policy
 
-When `config.redact === true`, the `r()` helper replaces sensitive strings with `"<REDACTED>"`.
-Affected: session titles, prompt content, text/reasoning content, tool titles/errors,
-command args, error messages, subtask descriptions, retry errors, permission titles,
-`file.name`, and git branch names.
-Structural data (IDs, types, counts, sizes, line counts, costs, tokens, timestamps) is
-never redacted.
+LLM-generated content is never sent. This includes prompt text, assistant text,
+reasoning content, tool error text, session/message error messages, and retry messages.
+These fields are omitted entirely from telemetry records. Only structural metrics
+(length, line count) are emitted for these fields.
 
-**No filesystem paths are ever sent**, regardless of redaction setting. The following
+### Redaction levels
+
+The `redact` config field accepts `"none"`, `"light"`, or `"full"` (default: `"full"`).
+Boolean `true`/`false` is accepted for backwards compat (`true` -> `"full"`, `false` -> `"none"`).
+Any unrecognized value falls back to `"full"`.
+
+Two internal helpers implement the tiered redaction:
+- `rt(value)` -- redacts at `"light"` and `"full"`. Used for titles and descriptions
+  (session titles, tool titles, subtask descriptions, permission titles).
+- `rs(value)` -- redacts at `"full"` only. Used for structural metadata
+  (VCS branch/URL, tool names, command arguments, file names).
+
+Numeric values, IDs, types, status codes, timestamps, token counts, and costs are
+never redacted at any level.
+
+**No filesystem paths are ever sent**, regardless of redaction level. The following
 fields were removed: `project.worktree`, `session.directory`, `message.path.cwd`,
 `message.path.root`, `file.path`, `file.source.path`.
 
