@@ -1,10 +1,18 @@
 # Setup Instructions
 
-## 1. Install the plugin
+## 1. Add the plugin
 
-```bash
-npm install @gfxlabs/opencode-plugins-otel
+Add `@gfxlabs/opencode-plugins-otel` to the `plugin` array in your opencode config file:
+
+```json
+// ~/.config/opencode/opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@gfxlabs/opencode-plugins-otel"]
+}
 ```
+
+If you already have a `plugin` array, append `"@gfxlabs/opencode-plugins-otel"` to it. opencode installs npm packages automatically -- no separate `npm install` step is needed.
 
 ## 2. Configuration
 
@@ -91,7 +99,7 @@ export OPENCODE_OTEL_HEADERS="Authorization=Bearer tok_xxx,X-Custom=value"
 
 ## 5. Redaction
 
-LLM-generated content (prompts, reasoning, assistant text, error messages) is **never sent** regardless of redaction level. Only structural metrics like length and line count are emitted.
+LLM-generated content (reasoning, assistant text, error messages) is **never sent** regardless of redaction level. Only structural metrics like length and line count are emitted. User prompt text is the one exception -- it is sent wrapped in `rt()`, so it is `<REDACTED>` at `"light"` and `"full"` levels and only visible at `"none"`.
 
 The `redact` field controls how much structural metadata is sent. Default is `"full"` (most conservative). For backwards compatibility, `true` is treated as `"full"` and `false` as `"none"`.
 

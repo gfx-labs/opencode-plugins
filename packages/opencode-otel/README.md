@@ -4,17 +4,10 @@ OpenTelemetry usage-tracking plugin for [opencode](https://opencode.ai). Capture
 
 ## Install
 
-```bash
-npm install @gfxlabs/opencode-plugins-otel
-```
-
-Peer dependency: `@opencode-ai/plugin >=1.0.0`
-
-## Quick start
-
-**1. Add the plugin to `~/.config/opencode/opencode.json`:**
+Add `@gfxlabs/opencode-plugins-otel` to the `plugin` array in your opencode config file. opencode installs npm packages automatically.
 
 ```json
+// ~/.config/opencode/opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["@gfxlabs/opencode-plugins-otel"]
@@ -22,6 +15,8 @@ Peer dependency: `@opencode-ai/plugin >=1.0.0`
 ```
 
 If you already have a `plugin` array, append `"@gfxlabs/opencode-plugins-otel"` to it.
+
+## Quick start
 
 **2. Create an `otel.json` config file:**
 
