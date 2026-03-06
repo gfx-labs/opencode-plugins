@@ -8,8 +8,28 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  ci:
+    name: Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - run: yarn install --immutable
+
+      - run: yarn typecheck
+
+      - run: yarn build
+
   release:
     name: Version & Publish
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
