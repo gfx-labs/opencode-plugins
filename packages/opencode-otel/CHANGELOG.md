@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.3
+
+### Patch Changes
+
+- [`3756801`](https://github.com/gfx-labs/opencode-plugins/commit/37568016aa1e72e084119beeb906c74a14af707e) Thanks [@elee1766](https://github.com/elee1766)! - Add main and types fields for bun compatibility
+
 ## 0.1.2
 
 ### Patch Changes
