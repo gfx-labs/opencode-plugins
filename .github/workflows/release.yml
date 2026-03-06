@@ -33,8 +33,8 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          version: yarn version
-          publish: yarn release
+          version: yarn cs:version
+          publish: yarn cs:publish
           title: "chore: version packages"
           commit: "chore: version packages"
         env:

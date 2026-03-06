@@ -643,6 +643,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gfxlabs/opencode-plugins-otel@workspace:packages/opencode-otel"
   dependencies:
+    "@opencode-ai/plugin": "npm:^1.2.0"
+    "@opencode-ai/sdk": "npm:^1.2.0"
     tsx: "npm:^4.21.0"
   peerDependencies:
     "@opencode-ai/plugin": ">=1.0.0"
@@ -752,6 +754,23 @@ __metadata:
   dependencies:
     semver: "npm:^7.3.5"
   checksum: 10c0/26e376d780f60ff16e874a0ac9bc3399186846baae0b6e1352286385ac134d900cc5dafaded77f38d77f86898fc923ae1cee9d7399f0275b1aa24878915d722b
+  languageName: node
+  linkType: hard
+
+"@opencode-ai/plugin@npm:^1.2.0":
+  version: 1.2.20
+  resolution: "@opencode-ai/plugin@npm:1.2.20"
+  dependencies:
+    "@opencode-ai/sdk": "npm:1.2.20"
+    zod: "npm:4.1.8"
+  checksum: 10c0/04a7f4a28e98b109fe13343f7688c506cb56a727ea95469d2b3174f2fd58dde936b67f5176512716ca122c86ee067f59e348822fa46e17067936b2ed0beebfb9
+  languageName: node
+  linkType: hard
+
+"@opencode-ai/sdk@npm:1.2.20, @opencode-ai/sdk@npm:^1.2.0":
+  version: 1.2.20
+  resolution: "@opencode-ai/sdk@npm:1.2.20"
+  checksum: 10c0/aceda1d73afbc81e8e659fa392f8b91b2310938702a1bd56cc74a6c7baa433d980ee5d609e6386b482a958f89d650d6a333f64634c76da5142fe3b988cd792f0
   languageName: node
   linkType: hard
 
@@ -2743,5 +2762,12 @@ __metadata:
   bin:
     yaml: bin.mjs
   checksum: 10c0/703e4dc1e34b324aa66876d63618dcacb9ed49f7e7fe9b70f1e703645be8d640f68ab84f12b86df8ac960bac37acf5513e115de7c970940617ce0343c8c9cd96
+  languageName: node
+  linkType: hard
+
+"zod@npm:4.1.8":
+  version: 4.1.8
+  resolution: "zod@npm:4.1.8"
+  checksum: 10c0/5eae39da09d7bd0564a30dfd2348811e4e2e7dd15955d8f3444f8e196f35e5422b1482eda234b722fafb0738f4a8b718adb042b860936bfdd2cc19cdbdac8a9a
   languageName: node
   linkType: hard

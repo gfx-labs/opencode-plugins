@@ -235,8 +235,8 @@ publisher on npmjs.com linked to the `gfx-labs/opencode-plugins` repository. No
 
 ```bash
 # Apply pending changesets to bump versions and update changelogs
-yarn version
+yarn cs:version
 
 # Publish all packages with new versions to npm
-yarn release
+yarn cs:publish
 ```

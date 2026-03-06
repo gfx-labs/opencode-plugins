@@ -9,8 +9,8 @@
     "build": "yarn workspaces foreach -A --topological run build",
     "clean": "yarn workspaces foreach -A run clean",
     "typecheck": "tsc --build tsconfig.build.json",
-    "version": "changeset version",
-    "release": "changeset publish",
+    "cs:version": "changeset version",
+    "cs:publish": "changeset publish",
     "changeset": "changeset"
   },
   "devDependencies": {
