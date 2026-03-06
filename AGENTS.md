@@ -2,27 +2,28 @@
 
 ## Project Overview
 
-TypeScript monorepo (npm workspaces) containing plugins for the opencode-ai platform.
-Currently one package: `packages/opencode-otel` -- an OpenTelemetry usage-tracking plugin.
-ESM-only output via pkgroll. TypeScript 5.7+ in strict mode.
+TypeScript monorepo (Yarn 4 workspaces, `nodeLinker: node-modules`) containing plugins
+for the opencode-ai platform. Currently one package: `packages/opencode-otel` -- an
+OpenTelemetry usage-tracking plugin. ESM-only output via pkgroll. TypeScript 5.7+ in
+strict mode. Versioning and publishing handled by changesets.
 
 ## Build / Typecheck / Clean Commands
 
 ```bash
 # Build all packages
-npm run build
+yarn build
 
 # Build a single package
-npm run build -w packages/opencode-otel
+yarn workspace @gfxlabs/opencode-plugins-otel build
 
 # Typecheck all packages (uses project references)
-npm run typecheck
+yarn typecheck
 
 # Clean all build artifacts
-npm run clean
+yarn clean
 
 # Clean a single package
-npm run clean -w packages/opencode-otel
+yarn workspace @gfxlabs/opencode-plugins-otel clean
 ```
 
 ## Tests
@@ -174,3 +175,68 @@ opencode-plugins/                  # monorepo root
 5. Use `pkgroll` as the build tool (add `"build": "pkgroll"` script)
 6. Declare `@opencode-ai/plugin` as a peer dependency (`>=1.0.0`)
 7. Set `"type": "module"` and configure `exports` for dual CJS/ESM output
+
+## Releasing
+
+Releases are managed by [changesets](https://github.com/changesets/changesets) and
+published to npm via GitHub Actions.
+
+### Adding a changeset
+
+When you make a change that should result in a version bump, add a changeset:
+
+```bash
+yarn changeset
+```
+
+This prompts you to:
+1. Select which package(s) changed
+2. Choose the semver bump type (patch / minor / major)
+3. Write a short summary of the change
+
+It creates a markdown file in `.changeset/` -- commit this file with your PR.
+
+If a change does not need a release (e.g. docs-only, CI config), skip the changeset
+or run `yarn changeset --empty` to explicitly mark it as no-release.
+
+### How the release workflow works
+
+Two GitHub Actions workflows handle CI and releases:
+
+- **CI** (`.github/workflows/ci.yml`) -- runs `yarn typecheck` and `yarn build` on
+  every push to `master` and on every PR targeting `master`.
+
+- **Release** (`.github/workflows/release.yml`) -- runs on push to `master` and uses
+  `changesets/action@v1`. It does one of two things:
+
+  1. **Pending changesets exist:** opens (or updates) a PR titled "chore: version
+     packages" that bumps versions in `package.json`, consumes the changeset files,
+     and writes/updates `CHANGELOG.md`.
+
+  2. **No pending changesets** (i.e. the version PR was just merged): runs
+     `changeset publish` which publishes to npm and creates git tags.
+
+### Release steps
+
+1. Make changes on a branch, add a changeset, open a PR.
+2. Merge the PR to `master`.
+3. The release workflow opens a "chore: version packages" PR with the version bump.
+4. Review and merge the version PR.
+5. The release workflow runs again and publishes to npm.
+
+### npm authentication
+
+Publishing uses npm provenance via GitHub Actions OIDC (`id-token: write` permission
+and `provenance=true` in `.npmrc`). The `@gfxlabs` scope is configured as a trusted
+publisher on npmjs.com linked to the `gfx-labs/opencode-plugins` repository. No
+`NPM_TOKEN` secret is needed.
+
+### Manual version commands
+
+```bash
+# Apply pending changesets to bump versions and update changelogs
+yarn version
+
+# Publish all packages with new versions to npm
+yarn release
+```
