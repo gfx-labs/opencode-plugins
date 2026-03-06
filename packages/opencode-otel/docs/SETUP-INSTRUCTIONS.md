@@ -14,7 +14,7 @@ Add `"$schema"` to get validation and autocomplete in your editor:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/main/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
   "user_id": "your-username",
   "organization": "your-org",
   "endpoint": "https://otel-collector.example.com",
@@ -39,7 +39,7 @@ You can also set `redact` and `environment` here if you want them as defaults ac
   "organization": "eng-team",
   "endpoint": "https://otel-collector.example.com",
   "environment": "development",
-  "redact": true,
+  "redact": "light",
   "headers": {
     "Authorization": "Bearer tok_xxx"
   }
@@ -96,27 +96,28 @@ export OPENCODE_OTEL_HEADERS="Authorization=Bearer tok_xxx,X-Custom=value"
 
 ## 5. Redaction
 
-Set `"redact": true` in either config file to replace sensitive content with `<REDACTED>`. This covers:
+LLM-generated content (prompts, reasoning, assistant text, error messages) is **never sent** regardless of redaction level. Only structural metrics like length and line count are emitted.
 
-- Session titles and directory paths
-- User prompt content, text, and reasoning content
-- Tool titles, error messages, and command arguments
-- Filesystem paths (working directories, file paths, filenames)
-- Git branch names
-- Subtask descriptions, retry errors, permission titles
+The `redact` field controls how much structural metadata is sent. It accepts `"none"`, `"light"`, or `"full"`. Default is `"full"` (most conservative). For backwards compatibility, `true` is treated as `"full"` and `false` as `"none"`.
 
-Structural data (IDs, types, counts, sizes, token counts, costs, timestamps) is never redacted.
+| Level | Titles & descriptions | Structural metadata (VCS, tool names, file names) |
+|---|---|---|
+| `"full"` (default) | `<REDACTED>` | `<REDACTED>` |
+| `"light"` | `<REDACTED>` | Sent |
+| `"none"` | Sent | Sent |
 
-Redaction can be set globally and overridden per-project. For example, redact by default but allow full content on a specific project:
+Numeric data (IDs, types, counts, sizes, token counts, costs, timestamps) is never redacted at any level.
+
+Redaction can be set globally and overridden per-project. For example, use light redaction by default but full on a sensitive project:
 
 ```json
 // ~/.config/opencode/otel.json
-{ "redact": true }
+{ "redact": "light" }
 ```
 
 ```json
-// .opencode/otel.json (in a project where you want full data)
-{ "enabled": true, "redact": false, "project_name": "my-project" }
+// .opencode/otel.json (in a project where you want max privacy)
+{ "enabled": true, "redact": "full", "project_name": "my-project" }
 ```
 
 ## Config resolution order
