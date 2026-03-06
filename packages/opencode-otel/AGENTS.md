@@ -73,10 +73,15 @@ The plugin computes derived metrics for telemetry:
 
 ### Content policy
 
-LLM-generated content is never sent. This includes prompt text, assistant text,
-reasoning content, tool error text, session/message error messages, and retry messages.
-These fields are omitted entirely from telemetry records. Only structural metrics
-(length, line count) are emitted for these fields.
+LLM-generated content is never sent. This includes assistant text, reasoning content,
+tool error text, session/message error messages, and retry messages. These fields are
+omitted entirely from telemetry records. Only structural metrics (length, line count)
+are emitted for these fields.
+
+**Exception: user prompt text.** The `user.prompt` event includes `prompt.content`,
+which is the actual prompt text wrapped in `rt()`. At `"light"` and `"full"` redaction
+levels it is `<REDACTED>`; at `"none"` it is sent as-is. This is the only LLM content
+that can be sent.
 
 ### Redaction levels
 
@@ -86,8 +91,8 @@ Any unrecognized value falls back to `"full"`.
 
 Two internal helpers implement the tiered redaction:
 - `rt(value)` -- redacts at `"light"` and `"full"`. Used for titles, descriptions,
-  VCS info, and file names (session titles, tool titles, subtask descriptions,
-  permission titles, git branch/URL, file names).
+  VCS info, file names, and user prompt content (session titles, tool titles,
+  subtask descriptions, permission titles, git branch/URL, file names, prompt content).
 - `rs(value)` -- redacts at `"full"` only. Used for structural metadata
   (tool names, command arguments).
 

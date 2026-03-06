@@ -12,7 +12,18 @@ Peer dependency: `@opencode-ai/plugin >=1.0.0`
 
 ## Quick start
 
-Add the plugin to your opencode configuration and create an `otel.json` config file:
+**1. Add the plugin to `~/.config/opencode/opencode.json`:**
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@gfxlabs/opencode-plugins-otel"]
+}
+```
+
+If you already have a `plugin` array, append `"@gfxlabs/opencode-plugins-otel"` to it.
+
+**2. Create an `otel.json` config file:**
 
 **`.opencode/otel.json`** (project-level)
 
@@ -96,7 +107,7 @@ The plugin listens to opencode platform events and emits corresponding OTLP log 
 | `message.removed` | A message was removed/undone |
 | `message.part.updated` | A message part changed (text, reasoning, tool call, step, subtask, etc.) |
 | `message.part.removed` | A message part was removed |
-| `user.prompt` | Synthetic event: user's text prompt length and line count |
+| `user.prompt` | Synthetic event: user's prompt content (redacted via `rt()`), length, and line count |
 | `api.request` | Synthetic event: assistant message completion with cost and token breakdown |
 | `command.executed` | A slash command was executed |
 | `file.edited` | A file was edited |
@@ -173,13 +184,21 @@ The `tool.executed` event (from the `tool.execute.after` hook) captures:
 
 LLM-generated content is **never sent** regardless of redaction level. This includes:
 
-- User prompt text
 - Assistant text and reasoning content
 - Tool error messages
 - Session/message error messages
 - Retry error messages
 
 These fields are omitted entirely (not replaced with a placeholder). Only structural metrics like length and line count are sent.
+
+### User prompt text
+
+User prompt text is the one exception to the content policy above. The `user.prompt` event includes `prompt.content`, which contains the actual prompt text wrapped in `rt()`. This means:
+
+- At `"full"` (default) and `"light"`: prompt content is `<REDACTED>`
+- At `"none"`: prompt content is sent as-is
+
+This allows usage dashboards to display recent user prompts when redaction is disabled.
 
 ### Redaction levels
 
@@ -193,7 +212,7 @@ For backwards compatibility, `redact: true` is treated as `"full"` and `redact: 
 | `"light"` | `<REDACTED>` | Sent | Sent |
 | `"none"` | Sent | Sent | Sent |
 
-**Titles, descriptions, and VCS** (redacted at `light` and `full`, sent only at `none`):
+**Titles, descriptions, VCS, and prompt content** (redacted at `light` and `full`, sent only at `none`):
 - Session titles (`session.title`)
 - Tool result titles (`tool.title`)
 - Subtask descriptions (`subtask.description`)
@@ -201,6 +220,7 @@ For backwards compatibility, `redact: true` is treated as `"full"` and `redact: 
 - File names (`file.name`)
 - Git branch names (`vcs.branch`, `vcs.ref.head.name`)
 - Git remote URL (`vcs.repository.url.full`)
+- User prompt content (`prompt.content`)
 
 **Structural metadata** (redacted at `full` only):
 - Tool names (`tool.name`)

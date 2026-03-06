@@ -15,7 +15,7 @@ export interface HandlerContext {
   // Redact structural metadata (VCS info, tool names, command args, file names) — applies at full level only
   rs: (value: string) => string
   userMessages: Set<string>
-  pendingTextParts: Map<string, { sessionID: string; length: number; lines: number }>
+  pendingTextParts: Map<string, { sessionID: string; content: string; length: number; lines: number }>
   getModelCosts: () => Promise<Map<string, { input: number; output: number; cacheRead: number; cacheWrite: number }>>
   estimateCost: (
     costs: Map<string, { input: number; output: number; cacheRead: number; cacheWrite: number }>,
@@ -77,12 +77,14 @@ function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.upd
       }
       if (userMessages.has(part.messageID)) {
         emit("user.prompt", {
+          "prompt.content": rt(part.text),
           "prompt.length": part.text.length,
           "prompt.lines": lineCount(part.text),
         })
       } else if (!pendingTextParts.has(part.messageID)) {
         pendingTextParts.set(part.messageID, {
           sessionID: part.sessionID,
+          content: part.text,
           length: part.text.length,
           lines: lineCount(part.text),
         })
@@ -290,6 +292,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
         if (pending) {
           pendingTextParts.delete(msg.id)
           emit("user.prompt", {
+            "prompt.content": rt(pending.content),
             "prompt.length": pending.length,
             "prompt.lines": pending.lines,
           })

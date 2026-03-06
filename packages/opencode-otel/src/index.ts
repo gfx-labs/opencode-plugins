@@ -159,7 +159,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   const inflight: Set<Promise<void>> = new Set()
   const userMessages = new Set<string>()
   // Buffer text parts that arrive before we know the message role
-  const pendingTextParts = new Map<string, { sessionID: string; length: number; lines: number }>()
+  const pendingTextParts = new Map<string, { sessionID: string; content: string; length: number; lines: number }>()
 
   // Tracked context — updated on every event, auto-injected into all records
   let currentSessionID: string | undefined
