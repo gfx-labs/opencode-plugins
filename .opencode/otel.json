@@ -1,3 +1,4 @@
 {
-  "enabled": true
+  "enabled": true,
+  "project_name": "gfx-labs/opencode-plugins"
 }
