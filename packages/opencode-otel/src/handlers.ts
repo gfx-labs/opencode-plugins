@@ -378,7 +378,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
     },
     "vcs.branch.updated": (event) => {
       emit("vcs.branch.updated", {
-        "vcs.branch": event.properties.branch ? rs(event.properties.branch) : undefined,
+        "vcs.branch": event.properties.branch ? rt(event.properties.branch) : undefined,
       })
     },
   }

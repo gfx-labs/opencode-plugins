@@ -193,16 +193,16 @@ For backwards compatibility, `redact: true` is treated as `"full"` and `redact: 
 | `"light"` | `<REDACTED>` | Sent | Sent |
 | `"none"` | Sent | Sent | Sent |
 
-**Titles & descriptions** (redacted at `light` and `full`, sent only at `none`):
+**Titles, descriptions, and VCS** (redacted at `light` and `full`, sent only at `none`):
 - Session titles (`session.title`)
 - Tool result titles (`tool.title`)
 - Subtask descriptions (`subtask.description`)
 - Permission titles (`permission.title`)
 - File names (`file.name`)
-
-**Structural metadata** (redacted at `full` only):
 - Git branch names (`vcs.branch`, `vcs.ref.head.name`)
 - Git remote URL (`vcs.repository.url.full`)
+
+**Structural metadata** (redacted at `full` only):
 - Tool names (`tool.name`)
 - Command arguments (`command.arguments`)
 

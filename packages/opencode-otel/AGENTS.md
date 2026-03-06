@@ -85,10 +85,11 @@ Boolean `true`/`false` is accepted for backwards compat (`true` -> `"full"`, `fa
 Any unrecognized value falls back to `"full"`.
 
 Two internal helpers implement the tiered redaction:
-- `rt(value)` -- redacts at `"light"` and `"full"`. Used for titles and descriptions
-  (session titles, tool titles, subtask descriptions, permission titles).
+- `rt(value)` -- redacts at `"light"` and `"full"`. Used for titles, descriptions,
+  VCS info, and file names (session titles, tool titles, subtask descriptions,
+  permission titles, git branch/URL, file names).
 - `rs(value)` -- redacts at `"full"` only. Used for structural metadata
-  (VCS branch/URL, tool names, command arguments, file names).
+  (tool names, command arguments).
 
 Numeric values, IDs, types, status codes, timestamps, token counts, and costs are
 never redacted at any level.

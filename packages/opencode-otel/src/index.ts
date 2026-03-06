@@ -84,13 +84,13 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   if (gitInfo.remoteUrl) {
     resourceAttrs.push({
       key: "vcs.repository.url.full",
-      value: { stringValue: rs(gitInfo.remoteUrl) },
+      value: { stringValue: rt(gitInfo.remoteUrl) },
     })
   }
   if (gitInfo.branch) {
     resourceAttrs.push({
       key: "vcs.ref.head.name",
-      value: { stringValue: rs(gitInfo.branch) },
+      value: { stringValue: rt(gitInfo.branch) },
     })
   }
   if (gitInfo.commit) {
