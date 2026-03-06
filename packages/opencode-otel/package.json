@@ -9,6 +9,11 @@
     }
   },
   "license": "(Unlicense OR MIT)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gfx-labs/opencode-plugins",
+    "directory": "packages/opencode-otel"
+  },
   "files": [
     "dist",
     "!dist/tsconfig.tsbuildinfo",
