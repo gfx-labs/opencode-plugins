@@ -8,7 +8,7 @@ import { attrs, makeLogRecord, buildExportRequest, lineCount, safeStringifyLengt
 import { createHandlers, DRAIN_EVENTS } from "./handlers.js"
 
 const REDACTED = "<REDACTED>"
-const PLUGIN_VERSION = 2
+const PLUGIN_VERSION = 3
 
 export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   const config = await loadConfig(directory)
