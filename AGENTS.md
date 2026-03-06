@@ -206,8 +206,9 @@ Two GitHub Actions workflows handle CI and releases:
 - **CI** (`.github/workflows/ci.yml`) -- runs `yarn typecheck` and `yarn build` on
   every push to `master` and on every PR targeting `master`.
 
-- **Release** (`.github/workflows/release.yml`) -- runs on push to `master` and uses
-  `changesets/action@v1`. It does one of two things:
+- **Release** (`.github/workflows/release.yml`) -- runs on push to `master`. First
+  runs a `ci` job (typecheck + build). If that passes, the `release` job runs
+  `changesets/action@v1`, which does one of two things:
 
   1. **Pending changesets exist:** opens (or updates) a PR titled "chore: version
      packages" that bumps versions in `package.json`, consumes the changeset files,
@@ -220,16 +221,34 @@ Two GitHub Actions workflows handle CI and releases:
 
 1. Make changes on a branch, add a changeset, open a PR.
 2. Merge the PR to `master`.
-3. The release workflow opens a "chore: version packages" PR with the version bump.
+3. The release workflow runs CI checks, then opens a "chore: version packages" PR
+   with the version bump.
 4. Review and merge the version PR.
-5. The release workflow runs again and publishes to npm.
+5. The release workflow runs again, CI passes, and it publishes to npm.
 
 ### npm authentication
 
-Publishing uses npm provenance via GitHub Actions OIDC (`id-token: write` permission
-and `provenance=true` in `.npmrc`). The `@gfxlabs` scope is configured as a trusted
-publisher on npmjs.com linked to the `gfx-labs/opencode-plugins` repository. No
-`NPM_TOKEN` secret is needed.
+Publishing uses npm trusted publishing via GitHub Actions OIDC (`id-token: write`
+permission). The `@gfxlabs` scope is configured as a trusted publisher on npmjs.com
+linked to the `gfx-labs/opencode-plugins` repository and the `release.yml` workflow.
+No `NPM_TOKEN` secret is needed. Provenance attestations are generated automatically.
+
+### Package requirements for publishing
+
+Each publishable package must have a `repository` field in its `package.json` that
+matches the GitHub repo URL. npm verifies this against the provenance signature
+during trusted publishing:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/gfx-labs/opencode-plugins",
+  "directory": "packages/<package-name>"
+}
+```
+
+Packages must also have `main` and `types` top-level fields in addition to `exports`
+for bun compatibility.
 
 ### Manual version commands
 
