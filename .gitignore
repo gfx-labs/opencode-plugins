@@ -2,3 +2,10 @@ node_modules/
 dist/
 *.tsbuildinfo
 .env
+
+# yarn
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions

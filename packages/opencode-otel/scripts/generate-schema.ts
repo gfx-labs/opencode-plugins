@@ -50,6 +50,9 @@ const schema = {
   description: "Configuration for the @gfxlabs/opencode-plugins-otel plugin. Place as .opencode/otel.json (project) or ~/.config/opencode/otel.json (global).",
   type: "object",
   properties,
+  patternProperties: {
+    "^\\$": true,
+  },
   additionalProperties: false,
 }
 

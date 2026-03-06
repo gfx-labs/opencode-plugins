@@ -1,12 +1,13 @@
 {
   "name": "opencode-plugins",
   "private": true,
+  "packageManager": "yarn@4.13.0",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "clean": "npm run clean --workspaces --if-present",
+    "build": "yarn workspaces foreach -A --topological run build",
+    "clean": "yarn workspaces foreach -A run clean",
     "typecheck": "tsc --build tsconfig.build.json",
     "version": "changeset version",
     "release": "changeset publish",
