@@ -1,0 +1,244 @@
+# @gfxlabs/opencode-plugins-otel
+
+OpenTelemetry usage-tracking plugin for [opencode](https://opencode.ai). Captures session lifecycle, message flow, tool execution, and cost metrics as OTLP/HTTP JSON log records and ships them to any OTel-compatible collector.
+
+## Install
+
+```bash
+npm install @gfxlabs/opencode-plugins-otel
+```
+
+Peer dependency: `@opencode-ai/plugin >=1.0.0`
+
+## Quick start
+
+Add the plugin to your opencode configuration and create an `otel.json` config file:
+
+**`.opencode/otel.json`** (project-level)
+
+```json
+{
+  "enabled": true,
+  "endpoint": "https://otel-collector.example.com"
+}
+```
+
+The plugin is disabled by default. You must explicitly enable it via config or environment variable.
+
+## Configuration
+
+Configuration is loaded from two locations and merged (project overrides global per-key):
+
+| Location | Purpose |
+|---|---|
+| `<project>/.opencode/otel.json` | Project-specific settings (endpoint, project ID) |
+| `~/.config/opencode/otel.json` | Global user settings (user ID, auth headers) |
+
+### Config fields
+
+| Field | Type | Description |
+|---|---|---|
+| `enabled` | `boolean` | Enable the plugin. Default: `false` |
+| `endpoint` | `string` | OTLP/HTTP base URL. Logs are sent to `<endpoint>/v1/logs` |
+| `headers` | `Record<string, string>` | Extra HTTP headers (e.g. auth tokens) |
+| `redact` | `boolean` | Replace sensitive strings with `<REDACTED>`. Default: `false` |
+| `user_id` | `string` | User identifier added as `user.id` resource attribute |
+| `organization` | `string` | Organization ID. Default: `"unset"` |
+| `environment` | `string` | Deployment environment name. Default: `"default"` |
+| `project_name` | `string` | Optional human-readable project name. Sent as `project.name` resource attribute |
+
+### Environment variable overrides
+
+Environment variables take precedence over config file values.
+
+| Variable | Description |
+|---|---|
+| `OPENCODE_OTEL_ENABLED` | Set to `"1"` to enable the plugin |
+| `OPENCODE_OTEL_ENDPOINT` | OTLP/HTTP base URL |
+| `OPENCODE_OTEL_HEADERS` | Comma-separated `key=value` pairs for extra headers |
+
+### Example: split config
+
+Global config with user credentials:
+
+```json
+// ~/.config/opencode/otel.json
+{
+  "user_id": "alice",
+  "headers": {
+    "Authorization": "Bearer tok_xxx"
+  }
+}
+```
+
+Project config with endpoint and org:
+
+```json
+// .opencode/otel.json
+{
+  "enabled": true,
+  "endpoint": "https://otel.internal.company.com",
+  "organization": "eng-team",
+  "environment": "production"
+}
+```
+
+## What gets tracked
+
+### Resource attributes
+
+Every log record includes these resource-level attributes:
+
+| Attribute | Source |
+|---|---|
+| `service.name` | Always `"opencode"` |
+| `organization.id` | Config `organization` or `"unset"` |
+| `deployment.environment` | Config `environment` or `"default"` |
+| `project.id` | Always from opencode `project.id` |
+| `project.name` | Config `project_name` (if set) |
+
+| `user.id` | Config `user_id` (if set) |
+
+### Events
+
+The plugin listens to opencode platform events and emits corresponding OTLP log records. Each record's `body` is the event type string and attributes carry structured data.
+
+| Event type | Description |
+|---|---|
+| `session.created` | A new session was started (includes summary stats if available) |
+| `session.updated` | Session metadata changed (title, timestamps, summary stats) |
+| `session.deleted` | Session was deleted |
+| `session.idle` | Session became idle |
+| `session.compacted` | Session history was compacted |
+| `session.status` | Session status change (includes retry info) |
+| `session.error` | An error occurred in the session |
+| `session.diff` | File diff summary (file count, additions, deletions) |
+| `message.updated` | A message was created or updated (user or assistant) |
+| `message.removed` | A message was removed/undone |
+| `message.part.updated` | A message part changed (text, reasoning, tool call, step, subtask, etc.) |
+| `message.part.removed` | A message part was removed |
+| `user.prompt` | Synthetic event: user's text prompt content, length, and line count |
+| `api.request` | Synthetic event: assistant message completion with cost and token breakdown |
+| `command.executed` | A slash command was executed |
+| `file.edited` | A file was edited |
+| `permission.updated` | A permission request was created |
+| `permission.replied` | A permission request was answered |
+| `todo.updated` | Todo list changed (total count and per-status/priority breakdowns) |
+| `vcs.branch.updated` | Git branch changed |
+| `tool.executed` | A tool finished execution (via `tool.execute.after` hook) |
+
+### Session summary stats
+
+Session events (`session.created`, `session.updated`, `session.deleted`) include cumulative diff statistics when available:
+
+- `session.summary.additions` -- total lines added
+- `session.summary.deletions` -- total lines deleted
+- `session.summary.files` -- number of files changed
+- `session.share` -- whether the session is shared
+
+### Token and cost tracking
+
+For assistant messages, the plugin records:
+
+- Token counts: `tokens.input`, `tokens.output`, `tokens.reasoning`, `tokens.cache.read`, `tokens.cache.write`
+- Cost from the provider (when available)
+- Estimated cost from per-token rates via `client.provider.list()` (fallback when provider cost is 0)
+- Duration in milliseconds
+- Whether the message is a compaction summary: `message.summary`
+
+The `api.request` synthetic event aggregates these into a single record per LLM call.
+
+For user messages, the plugin additionally records:
+
+- System prompt length: `message.system.length`
+- Enabled tools count: `message.tools.count`
+- Context diff stats: `message.summary.diffs`, `message.summary.additions`, `message.summary.deletions`
+
+### Message part details
+
+The `message.part.updated` event captures type-specific attributes. All parts include `delta.length` when a streaming delta is present.
+
+| Part type | Key attributes |
+|---|---|
+| `text` | `text.length`, `text.lines`, `text.content`, `text.synthetic`, `text.ignored`, `text.time.start`, `text.time.end`, `text.duration_ms` |
+| `reasoning` | `reasoning.length`, `reasoning.lines`, `reasoning.content`, `reasoning.time.start`, `reasoning.time.end`, `reasoning.duration_ms` |
+| `tool` | `tool.name`, `tool.call_id`, `tool.state`, `tool.input_size`, `tool.output_size`, `tool.output_lines`, `tool.duration_ms`, `tool.success`, `tool.error`, `tool.time.compacted`, `tool.attachments` |
+| `step-start` | `step.snapshot` |
+| `step-finish` | `step.reason`, `step.cost`, `step.snapshot`, `step.tokens.*` |
+| `snapshot` | `snapshot.id` |
+| `subtask` | `subtask.agent`, `subtask.description`, `subtask.prompt.length`, `subtask.prompt.lines` |
+| `agent` | `agent.name` |
+| `retry` | `retry.attempt`, `retry.error.name`, `retry.error.message`, `retry.error.status_code`, `retry.error.retryable`, `retry.time.created` |
+| `compaction` | `compaction.auto` |
+| `file` | `file.mime`, `file.name`, `file.source.type`, `file.source.length`, `file.source.lines` |
+| `patch` | `patch.hash`, `patch.files` |
+
+### Tool execution metrics
+
+The `tool.executed` event (from the `tool.execute.after` hook) captures:
+
+- `tool.args_size` -- serialized size of tool input arguments
+- `tool.output_size` -- character length of tool output
+- `tool.output_lines` -- line count of tool output
+- `tool.has_metadata` -- whether metadata was returned
+
+## Batching and delivery
+
+- Records are buffered and flushed when either **100 records** accumulate or **5 seconds** elapse.
+- On terminal events (`session.idle`, `session.deleted`, `session.error`), the plugin drains all buffered and in-flight requests before returning to ensure delivery before process exit.
+- Failed sends are logged via `client.app.log` but do not throw or block the session.
+
+## Redaction
+
+When `redact: true` is set in config, the following values are replaced with `<REDACTED>`:
+
+- Session titles
+- User prompt content
+- Text and reasoning part content
+- Tool output titles and error messages
+- Command arguments
+- Error messages
+- Subtask descriptions
+- Retry error messages
+- Permission titles
+- File names (`file.name`)
+- Git branch names (`vcs.branch`)
+
+**Note:** Filesystem paths are never sent, regardless of redaction setting. The plugin does not transmit working directories, file paths, or project worktree paths.
+
+Token counts, cost values, timing data, and structural identifiers (IDs, types, states) are never redacted.
+
+## Protocol
+
+The plugin speaks **OTLP/HTTP JSON** (not gRPC, not Protobuf). Log records are sent as `POST` requests to `<endpoint>/v1/logs` with `Content-Type: application/json`.
+
+The scope is identified as:
+- **Scope name:** `opencode-otel`
+- **Scope version:** `0.1.0`
+
+All timestamps use nanosecond precision (Unix epoch). All records are severity `INFO` (severityNumber 9).
+
+## API
+
+The package exports a single binding:
+
+```ts
+import { OtelPlugin } from "@gfxlabs/opencode-plugins-otel"
+```
+
+`OtelPlugin` conforms to the `Plugin` type from `@opencode-ai/plugin`. It implements two hooks:
+
+- **`event`** -- handles all platform events (session, message, command, file, permission)
+- **`tool.execute.after`** -- records tool execution after completion
+
+## Build
+
+```bash
+npm run build -w packages/opencode-otel
+```
+
+Output: `dist/index.mjs` (ESM) + `dist/index.d.mts` (types). ESM-only, no CJS.
+
+## License
+
+dual-licensed under [Unlicense](https://unlicense.org/) and [MIT](https://opensource.org/licenses/MIT). choose whichever you prefer.
