@@ -18,6 +18,7 @@ Add the plugin to your opencode configuration and create an `otel.json` config f
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
   "enabled": true,
   "endpoint": "https://otel-collector.example.com"
 }
@@ -27,25 +28,27 @@ The plugin is disabled by default. You must explicitly enable it via config or e
 
 ## Configuration
 
-Configuration is loaded from two locations and merged (project overrides global per-key):
+Configuration is loaded from two JSON files and merged (project overrides global per-key; headers are deep-merged):
 
 | Location | Purpose |
 |---|---|
-| `<project>/.opencode/otel.json` | Project-specific settings (endpoint, project ID) |
-| `~/.config/opencode/otel.json` | Global user settings (user ID, auth headers) |
+| `~/.config/opencode/otel.json` | Global user settings (applied to all projects) |
+| `<project>/.opencode/otel.json` | Project-specific overrides |
+
+All fields are optional in both files. See [Setup Instructions](docs/SETUP-INSTRUCTIONS.md) for full examples.
 
 ### Config fields
 
-| Field | Type | Description |
-|---|---|---|
-| `enabled` | `boolean` | Enable the plugin. Default: `false` |
-| `endpoint` | `string` | OTLP/HTTP base URL. Logs are sent to `<endpoint>/v1/logs` |
-| `headers` | `Record<string, string>` | Extra HTTP headers (e.g. auth tokens) |
-| `redact` | `"none" \| "light" \| "full"` | Redaction level. Default: `"full"`. See [Redaction](#redaction) below |
-| `user_id` | `string` | User identifier added as `user.id` resource attribute |
-| `organization` | `string` | Organization ID. Default: `"unset"` |
-| `environment` | `string` | Deployment environment name. Default: `"default"` |
-| `project_name` | `string` | Optional human-readable project name. Sent as `project.name` resource attribute |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `false` | Enable the plugin |
+| `endpoint` | `string` | | OTLP/HTTP base URL. Logs are sent to `<endpoint>/v1/logs` |
+| `headers` | `Record<string, string>` | | Extra HTTP headers (e.g. auth tokens) |
+| `redact` | `"none" \| "light" \| "full"` | `"full"` | Redaction level. See [Redaction](#redaction) below |
+| `user_id` | `string` | | User identifier. Sent as `user.id` resource attribute |
+| `organization` | `string` | `"unset"` | Organization ID |
+| `environment` | `string` | `"default"` | Deployment environment name |
+| `project_name` | `string` | | Human-readable project name. Sent as `project.name` resource attribute |
 
 ### Environment variable overrides
 
@@ -56,32 +59,6 @@ Environment variables take precedence over config file values.
 | `OPENCODE_OTEL_ENABLED` | Set to `"1"` to enable the plugin |
 | `OPENCODE_OTEL_ENDPOINT` | OTLP/HTTP base URL |
 | `OPENCODE_OTEL_HEADERS` | Comma-separated `key=value` pairs for extra headers |
-
-### Example: split config
-
-Global config with user credentials:
-
-```json
-// ~/.config/opencode/otel.json
-{
-  "user_id": "alice",
-  "headers": {
-    "Authorization": "Bearer tok_xxx"
-  }
-}
-```
-
-Project config with endpoint and org:
-
-```json
-// .opencode/otel.json
-{
-  "enabled": true,
-  "endpoint": "https://otel.internal.company.com",
-  "organization": "eng-team",
-  "environment": "production"
-}
-```
 
 ## What gets tracked
 
@@ -216,18 +193,18 @@ For backwards compatibility, `redact: true` is treated as `"full"` and `redact: 
 | `"light"` | `<REDACTED>` | Sent | Sent |
 | `"none"` | Sent | Sent | Sent |
 
-**Titles & descriptions** (redacted at `light` and `full`):
+**Titles & descriptions** (redacted at `light` and `full`, sent only at `none`):
 - Session titles (`session.title`)
 - Tool result titles (`tool.title`)
 - Subtask descriptions (`subtask.description`)
 - Permission titles (`permission.title`)
+- File names (`file.name`)
 
 **Structural metadata** (redacted at `full` only):
 - Git branch names (`vcs.branch`, `vcs.ref.head.name`)
 - Git remote URL (`vcs.repository.url.full`)
 - Tool names (`tool.name`)
 - Command arguments (`command.arguments`)
-- File names (`file.name`)
 
 **Always sent** (never redacted):
 - Token counts, cost values, timing data

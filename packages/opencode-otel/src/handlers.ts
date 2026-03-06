@@ -176,7 +176,7 @@ function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.upd
     case "file":
       extra = {
         "file.mime": part.mime,
-        "file.name": part.filename ? rs(part.filename) : undefined,
+        "file.name": part.filename ? rt(part.filename) : undefined,
         "file.source.type": part.source?.type,
         "file.source.length": part.source?.text.value.length,
         "file.source.lines": part.source ? part.source.text.end - part.source.text.start : undefined,

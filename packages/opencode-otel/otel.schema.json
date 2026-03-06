@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/main/packages/opencode-otel/otel.schema.json",
+  "$id": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
   "title": "opencode-otel config",
   "description": "Configuration for the @gfxlabs/opencode-plugins-otel plugin. Place as .opencode/otel.json (project) or ~/.config/opencode/otel.json (global).",
   "type": "object",
