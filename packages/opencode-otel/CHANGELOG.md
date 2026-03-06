@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.4
+
+### Patch Changes
+
+- [`9a94b88`](https://github.com/gfx-labs/opencode-plugins/commit/9a94b88cba5860003490aed7a5d0b48c336e2606) Thanks [@elee1766](https://github.com/elee1766)! - Add prompt.content to user.prompt events (redacted via rt()), bump PLUGIN_VERSION to 3, update docs for npm plugin install flow
+
 ## 0.1.3
 
 ### Patch Changes
