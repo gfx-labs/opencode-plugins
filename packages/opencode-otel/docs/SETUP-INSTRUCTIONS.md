@@ -8,7 +8,7 @@ Add `@gfxlabs/opencode-plugins-otel` to the `plugin` array in your opencode conf
 // ~/.config/opencode/opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@gfxlabs/opencode-plugins-otel"]
+  "plugin": ["@gfxlabs/opencode-plugins-otel@latest"]
 }
 ```
 
