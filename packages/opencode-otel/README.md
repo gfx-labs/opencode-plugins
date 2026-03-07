@@ -123,15 +123,16 @@ Session events (`session.created`, `session.updated`, `session.deleted`) include
 
 ### Token and cost tracking
 
-For assistant messages, the plugin records:
+Cost and token data is only emitted on the `api.request` synthetic event, which fires exactly once per completed LLM call (deduplicated by message ID). This includes:
 
 - Token counts: `tokens.input`, `tokens.output`, `tokens.reasoning`, `tokens.cache.read`, `tokens.cache.write`
 - Cost from the provider (when available)
 - Estimated cost from per-token rates via `client.provider.list()` (fallback when provider cost is 0)
 - Duration in milliseconds
-- Whether the message is a compaction summary: `message.summary`
+- Finish reason: `finish`
+- Message ID: `message.id` (for dedup/correlation)
 
-The `api.request` synthetic event aggregates these into a single record per LLM call.
+The `message.updated` event for assistant messages does not carry cost or token fields -- it records structural metadata only (model, mode, finish reason, timing, summary).
 
 For user messages, the plugin additionally records:
 

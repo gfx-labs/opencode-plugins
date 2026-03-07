@@ -198,6 +198,9 @@ export const DRAIN_EVENTS = new Set<EventType>(["session.idle", "session.deleted
 
 export function createHandlers(ctx: HandlerContext): EventHandlers {
   const { track, emit, rt, rs, userMessages, pendingTextParts, getModelCosts, estimateCost } = ctx
+  // Dedup synthetic events — opencode may deliver the same event multiple times
+  const emittedApiRequests = new Set<string>()
+  const emittedUserPrompts = new Set<string>()
 
   return {
     "session.created": (event) => {
@@ -266,14 +269,12 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
           "provider.id": msg.providerID,
           "message.mode": msg.mode,
           "message.parent_id": msg.parentID,
-          "message.cost": msg.cost,
-          ...tokenAttrs("tokens", msg.tokens),
           "message.finish": msg.finish,
           "message.time.completed": msg.time.completed,
           "message.duration_ms": duration,
           "message.summary": msg.summary,
           "message.error.name": msg.error?.name,
-          // error message is runtime content — never sent
+          // cost and tokens live on api.request only
         } : {}),
         ...(msg.role === "user" ? {
           "message.agent": msg.agent,
@@ -298,13 +299,15 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
           })
         }
       }
-      if (msg.role === "assistant" && msg.finish) {
+      if (msg.role === "assistant" && msg.finish && !emittedApiRequests.has(msg.id)) {
+        emittedApiRequests.add(msg.id)
         let effectiveCost = msg.cost
         if (!effectiveCost) {
           const costs = await getModelCosts()
           effectiveCost = estimateCost(costs, msg.modelID, msg.tokens) ?? 0
         }
         emit("api.request", {
+          "message.id": msg.id,
           "model.id": msg.modelID,
           "provider.id": msg.providerID,
           "message.mode": msg.mode,
