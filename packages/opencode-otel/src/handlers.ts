@@ -302,7 +302,9 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
       if (msg.role === "assistant" && msg.finish && !emittedApiRequests.has(msg.id)) {
         emittedApiRequests.add(msg.id)
         let effectiveCost = msg.cost
-        if (!effectiveCost) {
+        // Only estimate cost for Anthropic models — other providers either
+        // report cost accurately or are subscription plans where $0 is correct
+        if (!effectiveCost && msg.providerID === "anthropic") {
           const costs = await getModelCosts()
           effectiveCost = estimateCost(costs, msg.modelID, msg.tokens) ?? 0
         }
