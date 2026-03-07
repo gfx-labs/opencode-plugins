@@ -15,6 +15,7 @@ export interface HandlerContext {
   // Redact structural metadata (VCS info, tool names, command args, file names) — applies at full level only
   rs: (value: string) => string
   userMessages: Set<string>
+  childSessions: Set<string>
   pendingTextParts: Map<string, { sessionID: string; content: string; length: number; lines: number }>
   getModelCosts: () => Promise<Map<string, { input: number; output: number; cacheRead: number; cacheWrite: number }>>
   estimateCost: (
@@ -53,7 +54,7 @@ function sessionFields(
   }
 }
 
-function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.updated">["properties"]["part"], delta: string | undefined) {
+function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.updated">["properties"]["part"], delta: string | undefined, emittedUserPrompts: Set<string>) {
   const { emit, rt, rs, userMessages, pendingTextParts } = ctx
   const base: Record<string, AttrVal> = {
     "part.id": part.id,
@@ -76,11 +77,14 @@ function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.upd
           : undefined,
       }
       if (userMessages.has(part.messageID)) {
-        emit("user.prompt", {
-          "prompt.content": rt(part.text),
-          "prompt.length": part.text.length,
-          "prompt.lines": lineCount(part.text),
-        })
+        if (!emittedUserPrompts.has(part.messageID) && !ctx.childSessions.has(part.sessionID)) {
+          emittedUserPrompts.add(part.messageID)
+          emit("user.prompt", {
+            "prompt.content": rt(part.text),
+            "prompt.length": part.text.length,
+            "prompt.lines": lineCount(part.text),
+          })
+        }
       } else if (!pendingTextParts.has(part.messageID)) {
         pendingTextParts.set(part.messageID, {
           sessionID: part.sessionID,
@@ -205,6 +209,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
   return {
     "session.created": (event) => {
       track(event.properties.info.id)
+      if (event.properties.info.parentID) ctx.childSessions.add(event.properties.info.id)
       emit("session.created", sessionFields(rt, event.properties.info))
     },
     "session.updated": (event) => {
@@ -290,7 +295,8 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
       if (msg.role === "user") {
         userMessages.add(msg.id)
         const pending = pendingTextParts.get(msg.id)
-        if (pending) {
+        if (pending && !emittedUserPrompts.has(msg.id) && !ctx.childSessions.has(pending.sessionID)) {
+          emittedUserPrompts.add(msg.id)
           pendingTextParts.delete(msg.id)
           emit("user.prompt", {
             "prompt.content": rt(pending.content),
@@ -324,7 +330,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
     "message.part.updated": (event) => {
       const part = event.properties.part
       track(part.sessionID, part.messageID)
-      handlePartUpdated(ctx, part, event.properties.delta)
+      handlePartUpdated(ctx, part, event.properties.delta, emittedUserPrompts)
     },
     "message.removed": (event) => {
       track(event.properties.sessionID, event.properties.messageID)

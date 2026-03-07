@@ -102,7 +102,7 @@ The plugin listens to opencode platform events and emits corresponding OTLP log 
 | `message.removed` | A message was removed/undone |
 | `message.part.updated` | A message part changed (text, reasoning, tool call, step, subtask, etc.) |
 | `message.part.removed` | A message part was removed |
-| `user.prompt` | Synthetic event: user's prompt content (redacted via `rt()`), length, and line count |
+| `user.prompt` | Synthetic event: user's prompt content (redacted via `rt()`), length, and line count. Only emitted for root sessions, not subtask/subagent sessions. |
 | `api.request` | Synthetic event: assistant message completion with cost and token breakdown |
 | `command.executed` | A slash command was executed |
 | `file.edited` | A file was edited |
@@ -193,6 +193,8 @@ User prompt text is the one exception to the content policy above. The `user.pro
 
 - At `"full"` (default) and `"light"`: prompt content is `<REDACTED>`
 - At `"none"`: prompt content is sent as-is
+
+Only prompts from root sessions are emitted. Subtask and subagent sessions (those with a `parentID`) are excluded so that system-generated prompts do not appear as user input.
 
 This allows usage dashboards to display recent user prompts when redaction is disabled.
 

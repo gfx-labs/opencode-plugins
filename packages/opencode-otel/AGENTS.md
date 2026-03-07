@@ -44,7 +44,7 @@ The plugin is structured as a single async factory function (`OtelPlugin`) that:
 `todo.updated`, `vcs.branch.updated`
 
 Plus two synthetic events derived from message data:
-- `user.prompt` -- emitted when a user text part is matched to its message
+- `user.prompt` -- emitted when a user text part is matched to its message (root sessions only, not subtask/subagent sessions)
 - `api.request` -- emitted when an assistant message finishes, with cost/token summary
 
 ### Message part types handled
@@ -81,7 +81,9 @@ are emitted for these fields.
 **Exception: user prompt text.** The `user.prompt` event includes `prompt.content`,
 which is the actual prompt text wrapped in `rt()`. At `"light"` and `"full"` redaction
 levels it is `<REDACTED>`; at `"none"` it is sent as-is. This is the only LLM content
-that can be sent.
+that can be sent. Only prompts from root sessions are emitted -- subtask/subagent
+sessions (those with `session.parentID`) are excluded to avoid capturing
+system-generated prompts as user input.
 
 ### Redaction levels
 

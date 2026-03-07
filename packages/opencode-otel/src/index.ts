@@ -158,6 +158,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   let flushTimer: ReturnType<typeof setTimeout> | null = null
   const inflight: Set<Promise<void>> = new Set()
   const userMessages = new Set<string>()
+  const childSessions = new Set<string>()
   // Buffer text parts that arrive before we know the message role
   const pendingTextParts = new Map<string, { sessionID: string; content: string; length: number; lines: number }>()
 
@@ -230,6 +231,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
     rt,
     rs,
     userMessages,
+    childSessions,
     pendingTextParts,
     getModelCosts,
     estimateCost,
