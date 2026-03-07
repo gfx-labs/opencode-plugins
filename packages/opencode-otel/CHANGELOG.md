@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.7
+
+### Patch Changes
+
+- [`34967f9`](https://github.com/gfx-labs/opencode-plugins/commit/34967f97f87bee1b95ac5113476a6e406cd61ebb) Thanks [@elee1766](https://github.com/elee1766)! - Fix user.prompt emitting subtask/subagent prompts as user input. Only root session prompts are now emitted. Also deduplicate user.prompt events caused by opencode delivering events twice.
+
 ## 0.1.6
 
 ### Patch Changes
