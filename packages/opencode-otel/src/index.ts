@@ -116,14 +116,18 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
       const res = await client.provider.list()
       if (res.data) {
         for (const provider of res.data.all) {
-          for (const [, model] of Object.entries(provider.models)) {
+          for (const [key, model] of Object.entries(provider.models)) {
             if (model.cost) {
-              modelCosts.set(model.id, {
+              const entry: ModelCost = {
                 input: model.cost.input,
                 output: model.cost.output,
                 cacheRead: model.cost.cache_read ?? 0,
                 cacheWrite: model.cost.cache_write ?? 0,
-              })
+              }
+              // Store under both the map key (alias) and model.id (full ID)
+              // so lookups work regardless of which form msg.modelID uses
+              modelCosts.set(model.id, entry)
+              if (key !== model.id) modelCosts.set(key, entry)
             }
           }
         }
