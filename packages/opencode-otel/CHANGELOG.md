@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.5
+
+### Patch Changes
+
+- [`ae60110`](https://github.com/gfx-labs/opencode-plugins/commit/ae601104e3aded198bf990baa12e66d3938d296c) Thanks [@elee1766](https://github.com/elee1766)! - Fix double-counting of cost/tokens: move cost and token fields to api.request only, deduplicate by message ID. PLUGIN_VERSION 4.
+
 ## 0.1.4
 
 ### Patch Changes
