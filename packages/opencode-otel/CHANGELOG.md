@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.8
+
+### Patch Changes
+
+- [`8532f9a`](https://github.com/gfx-labs/opencode-plugins/commit/8532f9aa2f7447ff9c703240a91757ae45e98213) Thanks [@elee1766](https://github.com/elee1766)! - Fix user.prompt emitting subtask/subagent prompts as user input. Only root session prompts are now emitted. Also deduplicate user.prompt events caused by opencode delivering events twice. Fix cost estimation returning $0 for models whose provider list key differs from model.id by storing costs under both identifiers.
+
 ## 0.1.7
 
 ### Patch Changes
