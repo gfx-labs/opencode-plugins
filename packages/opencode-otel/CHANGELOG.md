@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.6
+
+### Patch Changes
+
+- [`ea49079`](https://github.com/gfx-labs/opencode-plugins/commit/ea4907961c84a57ac332fd7bfd112a40a2958b9b) Thanks [@elee1766](https://github.com/elee1766)! - Only estimate cost for Anthropic provider; other providers report cost accurately or use subscription plans where $0 is correct
+
 ## 0.1.5
 
 ### Patch Changes
