@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.9
+
+### Patch Changes
+
+- [`9b54d28`](https://github.com/gfx-labs/opencode-plugins/commit/9b54d283bc7adf1b3c3f37677754e2084c93c14f) Thanks [@elee1766](https://github.com/elee1766)! - Fix user.prompt double emission by using pendingTextParts and userMessages as mutual guards instead of a dedup Set. Bump PLUGIN_VERSION to 5.
+
 ## 0.1.8
 
 ### Patch Changes
