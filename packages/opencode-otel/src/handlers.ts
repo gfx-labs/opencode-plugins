@@ -54,8 +54,8 @@ function sessionFields(
   }
 }
 
-function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.updated">["properties"]["part"], delta: string | undefined, emittedUserPrompts: Set<string>) {
-  const { emit, rt, rs, userMessages, pendingTextParts } = ctx
+function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.updated">["properties"]["part"], delta: string | undefined) {
+  const { emit, rt, rs, pendingTextParts } = ctx
   const base: Record<string, AttrVal> = {
     "part.id": part.id,
     "part.type": part.type,
@@ -76,22 +76,28 @@ function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.upd
           ? part.time.end - part.time.start
           : undefined,
       }
-      if (userMessages.has(part.messageID)) {
-        if (!emittedUserPrompts.has(part.messageID) && !ctx.childSessions.has(part.sessionID)) {
-          emittedUserPrompts.add(part.messageID)
-          emit("user.prompt", {
-            "prompt.content": rt(part.text),
-            "prompt.length": part.text.length,
-            "prompt.lines": lineCount(part.text),
-          })
-        }
-      } else if (!pendingTextParts.has(part.messageID)) {
+      // Buffer text content for potential user.prompt emission.
+      // pendingTextParts doubles as a "seen" guard: once set for a
+      // messageID, duplicate deliveries of the same part are skipped.
+      // Emission happens from whichever of message.updated or
+      // message.part.updated arrives second (when both role and
+      // text content are known). The entry is never deleted so
+      // subsequent duplicate deliveries remain no-ops.
+      if (!pendingTextParts.has(part.messageID)) {
         pendingTextParts.set(part.messageID, {
           sessionID: part.sessionID,
           content: part.text,
           length: part.text.length,
           lines: lineCount(part.text),
         })
+        // If we already know this is a user message, emit now
+        if (ctx.userMessages.has(part.messageID) && !ctx.childSessions.has(part.sessionID)) {
+          emit("user.prompt", {
+            "prompt.content": rt(part.text),
+            "prompt.length": part.text.length,
+            "prompt.lines": lineCount(part.text),
+          })
+        }
       }
       break
     case "reasoning":
@@ -204,7 +210,6 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
   const { track, emit, rt, rs, userMessages, pendingTextParts, getModelCosts, estimateCost } = ctx
   // Dedup synthetic events — opencode may deliver the same event multiple times
   const emittedApiRequests = new Set<string>()
-  const emittedUserPrompts = new Set<string>()
 
   return {
     "session.created": (event) => {
@@ -292,12 +297,10 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
           "message.summary.deletions": msg.summary?.diffs?.reduce((sum: number, d: { deletions: number }) => sum + d.deletions, 0),
         } : {}),
       })
-      if (msg.role === "user") {
+      if (msg.role === "user" && !userMessages.has(msg.id)) {
         userMessages.add(msg.id)
         const pending = pendingTextParts.get(msg.id)
-        if (pending && !emittedUserPrompts.has(msg.id) && !ctx.childSessions.has(pending.sessionID)) {
-          emittedUserPrompts.add(msg.id)
-          pendingTextParts.delete(msg.id)
+        if (pending && !ctx.childSessions.has(pending.sessionID)) {
           emit("user.prompt", {
             "prompt.content": rt(pending.content),
             "prompt.length": pending.length,
@@ -330,7 +333,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
     "message.part.updated": (event) => {
       const part = event.properties.part
       track(part.sessionID, part.messageID)
-      handlePartUpdated(ctx, part, event.properties.delta, emittedUserPrompts)
+      handlePartUpdated(ctx, part, event.properties.delta)
     },
     "message.removed": (event) => {
       track(event.properties.sessionID, event.properties.messageID)
