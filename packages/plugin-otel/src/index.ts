@@ -3,6 +3,8 @@ import type { Event } from "@opencode-ai/sdk"
 import type { RedactLevel } from "./config.js"
 import { loadConfig } from "./config.js"
 import { detectGitInfo } from "./git.js"
+import type { OtelEvent } from "./events.js"
+import { flattenEvent } from "./events.js"
 import type { AttrVal, OtelLogRecord, OtelResourceAttr } from "./otel.js"
 import { attrs, makeLogRecord, buildExportRequest, lineCount, safeStringifyLength } from "./otel.js"
 import { createHandlers, DRAIN_EVENTS } from "./handlers.js"
@@ -216,8 +218,9 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
 
   // Emit a log record with tracked context always injected.
   // Event-specific attrs override tracked values.
-  function emit(eventType: string, eventAttrs: Record<string, AttrVal>) {
-    enqueue(makeLogRecord(eventType, attrs({
+  function emit(event: OtelEvent) {
+    const { type, attrs: eventAttrs } = flattenEvent(event)
+    enqueue(makeLogRecord(type, attrs({
       "session.id": currentSessionID,
       "message.id": currentMessageID,
       ...eventAttrs,
@@ -250,14 +253,17 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
 
     "tool.execute.after": async (input, output) => {
       track(input.sessionID)
-      emit("tool.executed", {
-        "tool.name": input.tool,
-        "tool.call_id": input.callID,
-        "tool.title": rt(output.title),
-        "tool.args_size": safeStringifyLength(input.args),
-        "tool.output_size": output.output?.length,
-        "tool.output_lines": output.output ? lineCount(output.output) : undefined,
-        "tool.has_metadata": output.metadata !== undefined && output.metadata !== null,
+      emit({
+        type: "tool.executed",
+        attrs: {
+          "tool.name": input.tool,
+          "tool.call_id": input.callID,
+          "tool.title": rt(output.title),
+          "tool.args_size": safeStringifyLength(input.args),
+          "tool.output_size": output.output?.length,
+          "tool.output_lines": output.output ? lineCount(output.output) : undefined,
+          "tool.has_metadata": output.metadata !== undefined && output.metadata !== null,
+        },
       })
     },
   }

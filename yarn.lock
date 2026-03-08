@@ -639,9 +639,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@gfxlabs/opencode-plugins-otel@workspace:packages/opencode-otel":
+"@gfxlabs/opencode-plugins-happynow@workspace:packages/plugin-happynow":
   version: 0.0.0-use.local
-  resolution: "@gfxlabs/opencode-plugins-otel@workspace:packages/opencode-otel"
+  resolution: "@gfxlabs/opencode-plugins-happynow@workspace:packages/plugin-happynow"
+  dependencies:
+    "@opencode-ai/plugin": "npm:^1.2.0"
+    "@opencode-ai/sdk": "npm:^1.2.0"
+  peerDependencies:
+    "@opencode-ai/plugin": ">=1.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@gfxlabs/opencode-plugins-otel@workspace:packages/plugin-otel":
+  version: 0.0.0-use.local
+  resolution: "@gfxlabs/opencode-plugins-otel@workspace:packages/plugin-otel"
   dependencies:
     "@opencode-ai/plugin": "npm:^1.2.0"
     "@opencode-ai/sdk": "npm:^1.2.0"

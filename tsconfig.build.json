@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/opencode-otel" }
+    { "path": "packages/plugin-otel" },
+    { "path": "packages/plugin-happynow" }
   ]
 }

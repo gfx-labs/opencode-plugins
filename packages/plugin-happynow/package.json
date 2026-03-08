@@ -1,6 +1,6 @@
 {
-  "name": "@gfxlabs/opencode-plugins-otel",
-  "version": "0.1.8",
+  "name": "@gfxlabs/opencode-plugins-happynow",
+  "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -14,16 +14,14 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/gfx-labs/opencode-plugins",
-    "directory": "packages/opencode-otel"
+    "directory": "packages/plugin-happynow"
   },
   "files": [
     "dist",
-    "!dist/tsconfig.tsbuildinfo",
-    "otel.schema.json"
+    "!dist/tsconfig.tsbuildinfo"
   ],
   "scripts": {
-    "generate:schema": "tsx scripts/generate-schema.ts",
-    "build": "yarn generate:schema && pkgroll",
+    "build": "pkgroll",
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
@@ -31,7 +29,6 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.2.0",
-    "@opencode-ai/sdk": "^1.2.0",
-    "tsx": "^4.21.0"
+    "@opencode-ai/sdk": "^1.2.0"
   }
 }

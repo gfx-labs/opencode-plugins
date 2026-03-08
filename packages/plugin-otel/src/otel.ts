@@ -98,17 +98,3 @@ export function safeStringifyLength(value: unknown): number | undefined {
   }
 }
 
-export function tokenAttrs(prefix: string, tokens: {
-  input: number
-  output: number
-  reasoning: number
-  cache: { read: number; write: number }
-}): Record<string, AttrVal> {
-  return {
-    [`${prefix}.input`]: tokens.input,
-    [`${prefix}.output`]: tokens.output,
-    [`${prefix}.reasoning`]: tokens.reasoning,
-    [`${prefix}.cache.read`]: tokens.cache.read,
-    [`${prefix}.cache.write`]: tokens.cache.write,
-  }
-}
