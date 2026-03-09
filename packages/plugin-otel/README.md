@@ -24,7 +24,7 @@ If you already have a `plugin` array, append `"@gfxlabs/opencode-plugins-otel"` 
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "enabled": true,
   "endpoint": "https://otel-collector.example.com"
 }
@@ -257,7 +257,7 @@ import { OtelPlugin } from "@gfxlabs/opencode-plugins-otel"
 ## Build
 
 ```bash
-npm run build -w packages/opencode-otel
+npm run build -w packages/plugin-otel
 ```
 
 Output: `dist/index.mjs` (ESM) + `dist/index.d.mts` (types). ESM-only, no CJS.

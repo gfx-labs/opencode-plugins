@@ -123,13 +123,13 @@ in a `Map<string, ModelCost>`.
 
 ```bash
 # Build this package only
-npm run build -w packages/opencode-otel
+npm run build -w packages/plugin-otel
 
 # Typecheck the whole monorepo (includes this package via project references)
 npm run typecheck
 
 # Clean build artifacts
-npm run clean -w packages/opencode-otel
+npm run clean -w packages/plugin-otel
 ```
 
 ## Documentation maintenance rule
@@ -137,8 +137,8 @@ npm run clean -w packages/opencode-otel
 **When changing the behavior of this plugin, you MUST update both documentation files
 to reflect the new behavior:**
 
-- `packages/opencode-otel/README.md` -- user-facing docs (config, events, usage)
-- `packages/opencode-otel/AGENTS.md` -- this file (architecture, internals, agent context)
+- `packages/plugin-otel/README.md` -- user-facing docs (config, events, usage)
+- `packages/plugin-otel/AGENTS.md` -- this file (architecture, internals, agent context)
 
 This applies to any change that affects:
 

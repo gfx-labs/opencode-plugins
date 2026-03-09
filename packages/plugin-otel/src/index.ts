@@ -3,14 +3,177 @@ import type { Event } from "@opencode-ai/sdk"
 import type { RedactLevel } from "./config.js"
 import { loadConfig } from "./config.js"
 import { detectGitInfo } from "./git.js"
-import type { OtelEvent } from "./events.js"
-import { flattenEvent } from "./events.js"
-import type { AttrVal, OtelLogRecord, OtelResourceAttr } from "./otel.js"
+import type { OtelEvent, Tokens } from "./events.js"
+import { flattenEvent, toolExecuted } from "./events.js"
+import type { OtelLogRecord, OtelResourceAttr } from "./otel.js"
 import { attrs, makeLogRecord, buildExportRequest, lineCount, safeStringifyLength } from "./otel.js"
 import { createHandlers, DRAIN_EVENTS } from "./handlers.js"
 
 const REDACTED = "<REDACTED>"
 const PLUGIN_VERSION = 5
+
+export interface ModelCost {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+}
+
+type LogLevel = "debug" | "info" | "warn" | "error"
+
+interface LogFn {
+  (level: LogLevel, message: string): void
+}
+
+export class EmitContext {
+  // Transport
+  private readonly logsUrl: string | undefined
+  private readonly headers: Record<string, string>
+  private readonly resourceAttrs: OtelResourceAttr[]
+  private readonly log: LogFn
+
+  // Buffering
+  private readonly buffer: OtelLogRecord[] = []
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly inflight = new Set<Promise<void>>()
+  private sequence = 0
+
+  // Context tracking
+  private currentSessionID: string | undefined
+  private currentMessageID: string | undefined
+
+  // Dedup state
+  readonly userMessages = new Set<string>()
+  readonly childSessions = new Set<string>()
+  readonly pendingTextParts = new Map<string, { sessionID: string; content: string; length: number; lines: number }>()
+
+  // Redaction
+  readonly rt: (value: string) => string
+  readonly rs: (value: string) => string
+
+  // Cost estimation
+  private modelCosts: Map<string, ModelCost> | undefined
+  private readonly loadProviders: () => Promise<Array<{ models: Record<string, { id: string; cost?: { input: number; output: number; cache_read?: number; cache_write?: number } }> }>>
+
+  constructor(opts: {
+    logsUrl: string | undefined
+    headers: Record<string, string>
+    resourceAttrs: OtelResourceAttr[]
+    redactLevel: RedactLevel
+    log: LogFn
+    loadProviders: () => Promise<Array<{ models: Record<string, { id: string; cost?: { input: number; output: number; cache_read?: number; cache_write?: number } }> }>>
+  }) {
+    this.logsUrl = opts.logsUrl
+    this.headers = opts.headers
+    this.resourceAttrs = opts.resourceAttrs
+    this.log = opts.log
+    this.loadProviders = opts.loadProviders
+    this.rt = opts.redactLevel !== "none"
+      ? () => REDACTED
+      : (v: string) => v
+    this.rs = opts.redactLevel === "full"
+      ? () => REDACTED
+      : (v: string) => v
+  }
+
+  track(sessionID?: string | null, messageID?: string | null) {
+    if (sessionID) this.currentSessionID = sessionID
+    if (messageID) this.currentMessageID = messageID
+  }
+
+  emit(event: OtelEvent) {
+    const { type, attrs: eventAttrs } = flattenEvent(event)
+    this.enqueue(makeLogRecord(type, attrs({
+      "session.id": this.currentSessionID,
+      "message.id": this.currentMessageID,
+      ...eventAttrs,
+    })))
+  }
+
+  flush() {
+    if (this.buffer.length === 0) return
+    this.send(this.buffer.splice(0))
+  }
+
+  async drain() {
+    this.flush()
+    await Promise.all([...this.inflight])
+  }
+
+  async getModelCosts(): Promise<Map<string, ModelCost>> {
+    if (this.modelCosts) return this.modelCosts
+    this.modelCosts = new Map()
+    try {
+      const providers = await this.loadProviders()
+      for (const provider of providers) {
+        for (const [key, model] of Object.entries(provider.models)) {
+          if (model.cost) {
+            const entry: ModelCost = {
+              input: model.cost.input,
+              output: model.cost.output,
+              cacheRead: model.cost.cache_read ?? 0,
+              cacheWrite: model.cost.cache_write ?? 0,
+            }
+            // Store under both the map key (alias) and model.id (full ID)
+            // so lookups work regardless of which form msg.modelID uses
+            this.modelCosts.set(model.id, entry)
+            if (key !== model.id) this.modelCosts.set(key, entry)
+          }
+        }
+      }
+    } catch {
+      this.log("warn", "failed to load model costs")
+    }
+    return this.modelCosts
+  }
+
+  estimateCost(
+    costs: Map<string, ModelCost>,
+    modelID: string,
+    tokens: Tokens,
+  ): number | undefined {
+    const rates = costs.get(modelID)
+    if (!rates) return undefined
+    // Rates are $/million-tokens, so divide by 1_000_000 to get cost in dollars
+    return (
+      tokens.input * rates.input +
+      tokens.output * rates.output +
+      tokens.reasoning * rates.output +
+      tokens.cache.read * rates.cacheRead +
+      tokens.cache.write * rates.cacheWrite
+    ) / 1_000_000
+  }
+
+  private enqueue(record: OtelLogRecord) {
+    if (!this.logsUrl) return
+    record.attributes.push(...attrs({ "event.sequence": this.sequence++ }))
+    this.buffer.push(record)
+    if (this.buffer.length >= 100) {
+      this.flush()
+    } else if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => {
+        this.flushTimer = null
+        this.flush()
+      }, 5_000)
+    }
+  }
+
+  private send(records: OtelLogRecord[]) {
+    if (!this.logsUrl) return
+    const p = fetch(this.logsUrl, {
+      method: "POST",
+      headers: this.headers,
+      keepalive: true,
+      body: JSON.stringify(buildExportRequest(this.resourceAttrs, records)),
+    }).then((res) => {
+      this.log("debug", `sent ${records.length} records — ${res.status}`)
+    }).catch((err) => {
+      this.log("error", `send failed: ${err}`)
+    })
+    this.inflight.add(p)
+    p.finally(() => this.inflight.delete(p))
+  }
+}
 
 export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   const config = await loadConfig(directory)
@@ -29,19 +192,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
     body: { service: "opencode-otel", level: "info", message: `enabled, endpoint=${config.endpoint ?? "none"}, redact=${redactLevel}` },
   })
 
-  // rt: redact titles/descriptions — applies at light + full levels
-  function rt(value: string): string {
-    return redactLevel !== "none" ? REDACTED : value
-  }
-
-  // rs: redact structural metadata (paths, branch names, tool names, command args) — full level only
-  function rs(value: string): string {
-    return redactLevel === "full" ? REDACTED : value
-  }
-
   const gitInfo = await detectGitInfo(directory)
-
-  let sequence = 0
 
   // Env vars take precedence over config
   const endpoint = process.env.OPENCODE_OTEL_ENDPOINT || config.endpoint
@@ -65,14 +216,13 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
     }
   }
 
-  const resourceAttrs: OtelResourceAttr[] =
-    [
-      { key: "service.name", value: { stringValue: "opencode" } },
-      { key: "organization.id", value: { stringValue: config.organization ?? "unset" } },
-      { key: "deployment.environment", value: { stringValue: config.environment ?? "default" } },
-      { key: "project.id", value: { stringValue: project.id } },
-      { key: "plugin.version", value: { intValue: PLUGIN_VERSION } },
-    ]
+  const resourceAttrs: OtelResourceAttr[] = [
+    { key: "service.name", value: { stringValue: "opencode" } },
+    { key: "organization.id", value: { stringValue: config.organization ?? "unset" } },
+    { key: "deployment.environment", value: { stringValue: config.environment ?? "default" } },
+    { key: "project.id", value: { stringValue: project.id } },
+    { key: "plugin.version", value: { intValue: PLUGIN_VERSION } },
+  ]
   resourceAttrs.push({
     key: "project.name",
     value: { stringValue: config.project_name ?? "default" },
@@ -83,16 +233,36 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
       value: { stringValue: config.user_id },
     })
   }
+
+  const log: LogFn = (level, message) => {
+    void client.app.log({
+      body: { service: "opencode-otel", level, message },
+    })
+  }
+
+  const ctx = new EmitContext({
+    logsUrl: endpoint ? endpoint.replace(/\/$/, "") + "/v1/logs" : undefined,
+    headers,
+    resourceAttrs,
+    redactLevel,
+    log,
+    loadProviders: async () => {
+      const res = await client.provider.list()
+      return res.data?.all ?? []
+    },
+  })
+
+  // Git info uses rt() from the context for redaction
   if (gitInfo.remoteUrl) {
     resourceAttrs.push({
       key: "vcs.repository.url.full",
-      value: { stringValue: rt(gitInfo.remoteUrl) },
+      value: { stringValue: ctx.rt(gitInfo.remoteUrl) },
     })
   }
   if (gitInfo.branch) {
     resourceAttrs.push({
       key: "vcs.ref.head.name",
-      value: { stringValue: rt(gitInfo.branch) },
+      value: { stringValue: ctx.rt(gitInfo.branch) },
     })
   }
   if (gitInfo.commit) {
@@ -102,148 +272,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
     })
   }
 
-  // Cached model cost rates: modelID -> per-token costs
-  interface ModelCost {
-    input: number
-    output: number
-    cacheRead: number
-    cacheWrite: number
-  }
-  let modelCosts: Map<string, ModelCost> | undefined
-
-  async function getModelCosts(): Promise<Map<string, ModelCost>> {
-    if (modelCosts) return modelCosts
-    modelCosts = new Map()
-    try {
-      const res = await client.provider.list()
-      if (res.data) {
-        for (const provider of res.data.all) {
-          for (const [key, model] of Object.entries(provider.models)) {
-            if (model.cost) {
-              const entry: ModelCost = {
-                input: model.cost.input,
-                output: model.cost.output,
-                cacheRead: model.cost.cache_read ?? 0,
-                cacheWrite: model.cost.cache_write ?? 0,
-              }
-              // Store under both the map key (alias) and model.id (full ID)
-              // so lookups work regardless of which form msg.modelID uses
-              modelCosts.set(model.id, entry)
-              if (key !== model.id) modelCosts.set(key, entry)
-            }
-          }
-        }
-      }
-    } catch {
-      void client.app.log({
-        body: { service: "opencode-otel", level: "warn", message: "failed to load model costs" },
-      })
-    }
-    return modelCosts
-  }
-
-  function estimateCost(
-    costs: Map<string, ModelCost>,
-    modelID: string,
-    tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } },
-  ): number | undefined {
-    const rates = costs.get(modelID)
-    if (!rates) return undefined
-    // Rates are $/million-tokens, so divide by 1_000_000 to get cost in dollars
-    return (
-      tokens.input * rates.input +
-      tokens.output * rates.output +
-      tokens.reasoning * rates.output +
-      tokens.cache.read * rates.cacheRead +
-      tokens.cache.write * rates.cacheWrite
-    ) / 1_000_000
-  }
-
-  const logsUrl = endpoint ? endpoint.replace(/\/$/, "") + "/v1/logs" : undefined
-  const buffer: OtelLogRecord[] = []
-  let flushTimer: ReturnType<typeof setTimeout> | null = null
-  const inflight: Set<Promise<void>> = new Set()
-  const userMessages = new Set<string>()
-  const childSessions = new Set<string>()
-  // Buffer text parts that arrive before we know the message role
-  const pendingTextParts = new Map<string, { sessionID: string; content: string; length: number; lines: number }>()
-
-  // Tracked context — updated on every event, auto-injected into all records
-  let currentSessionID: string | undefined
-  let currentMessageID: string | undefined
-
-  function send(records: OtelLogRecord[]) {
-    if (!logsUrl) return
-    const p = fetch(logsUrl, {
-      method: "POST",
-      headers,
-      keepalive: true,
-      body: JSON.stringify(buildExportRequest(resourceAttrs, records)),
-    }).then((res) => {
-      void client.app.log({
-        body: { service: "opencode-otel", level: "debug", message: `sent ${records.length} records — ${res.status}` },
-      })
-    }).catch((err) => {
-      void client.app.log({
-        body: { service: "opencode-otel", level: "error", message: `send failed: ${err}` },
-      })
-    })
-    inflight.add(p)
-    p.finally(() => inflight.delete(p))
-  }
-
-  function flush() {
-    if (buffer.length === 0) return
-    send(buffer.splice(0))
-  }
-
-  async function drain() {
-    flush()
-    await Promise.all([...inflight])
-  }
-
-  function enqueue(record: OtelLogRecord) {
-    if (!endpoint) return
-    record.attributes.push(...attrs({ "event.sequence": sequence++ }))
-    buffer.push(record)
-    if (buffer.length >= 100) {
-      flush()
-    } else if (!flushTimer) {
-      flushTimer = setTimeout(() => {
-        flushTimer = null
-        flush()
-      }, 5_000)
-    }
-  }
-
-  // Emit a log record with tracked context always injected.
-  // Event-specific attrs override tracked values.
-  function emit(event: OtelEvent) {
-    const { type, attrs: eventAttrs } = flattenEvent(event)
-    enqueue(makeLogRecord(type, attrs({
-      "session.id": currentSessionID,
-      "message.id": currentMessageID,
-      ...eventAttrs,
-    })))
-  }
-
-  function track(sessionID?: string | null, messageID?: string | null) {
-    if (sessionID) currentSessionID = sessionID
-    if (messageID) currentMessageID = messageID
-  }
-
-  const handlers = createHandlers({
-    track,
-    emit,
-    flush,
-    rt,
-    rs,
-    userMessages,
-    childSessions,
-    pendingTextParts,
-    getModelCosts,
-    estimateCost,
-  })
+  const handlers = createHandlers(ctx)
 
   // Ensure buffered records are flushed before the process exits.
   // opencode may not await the plugin's event handler on session.idle
@@ -252,30 +281,27 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   // a chance to flush synchronously (the fetch with keepalive: true
   // will outlive the process).
   process.on("beforeExit", () => {
-    flush()
+    ctx.flush()
   })
 
   return {
     event: async ({ event }) => {
       const handler = handlers[event.type] as ((event: Event) => Promise<void> | void) | undefined
       if (handler) await handler(event)
-      if (DRAIN_EVENTS.has(event.type)) await drain()
+      if (DRAIN_EVENTS.has(event.type)) await ctx.drain()
     },
 
     "tool.execute.after": async (input, output) => {
-      track(input.sessionID)
-      emit({
-        type: "tool.executed",
-        attrs: {
-          "tool.name": input.tool,
-          "tool.call_id": input.callID,
-          "tool.title": rt(output.title),
-          "tool.args_size": safeStringifyLength(input.args),
-          "tool.output_size": output.output?.length,
-          "tool.output_lines": output.output ? lineCount(output.output) : undefined,
-          "tool.has_metadata": output.metadata !== undefined && output.metadata !== null,
-        },
-      })
+      ctx.track(input.sessionID)
+      ctx.emit(toolExecuted({
+        name: input.tool,
+        callID: input.callID,
+        title: ctx.rt(output.title),
+        argsSize: safeStringifyLength(input.args),
+        outputSize: output.output?.length,
+        outputLines: output.output ? lineCount(output.output) : undefined,
+        hasMetadata: output.metadata !== undefined && output.metadata !== null,
+      }))
     },
   }
 }

@@ -45,7 +45,7 @@ Global config with user identity and auth:
 ```json
 // ~/.config/opencode/otel.json
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "user_id": "alice",
   "organization": "eng-team",
   "endpoint": "https://otel-collector.example.com",
@@ -62,7 +62,7 @@ Minimal project config (uses endpoint/auth from global):
 ```json
 // .opencode/otel.json
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "enabled": true,
   "project_name": "my-api"
 }
@@ -73,7 +73,7 @@ Full project config with overrides:
 ```json
 // .opencode/otel.json
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "enabled": true,
   "project_name": "my-api",
   "endpoint": "https://different-collector.example.com",
@@ -116,7 +116,7 @@ Redaction can be set globally and overridden per-project:
 ```json
 // ~/.config/opencode/otel.json — light redaction by default
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "redact": "light"
 }
 ```
@@ -124,7 +124,7 @@ Redaction can be set globally and overridden per-project:
 ```json
 // .opencode/otel.json — full redaction on a sensitive project
 {
-  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/opencode-otel/otel.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "enabled": true,
   "redact": "full",
   "project_name": "my-project"
