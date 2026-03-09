@@ -158,10 +158,12 @@ yarn workspace @gfxlabs/opencode-plugins-otel clean
 
 ## Documentation maintenance rule
 
-**When changing the behavior of this plugin, you MUST update both documentation files
-to reflect the new behavior:**
+**When changing behavior, update the relevant documentation files in the same commit:**
 
-- `packages/plugin-otel/README.md` -- user-facing docs (config, events, usage)
+- `packages/plugin-otel/docs/SETUP-INSTRUCTIONS.md` -- canonical source for config fields,
+  examples, env var overrides, and redaction levels
+- `packages/plugin-otel/README.md` -- install, events, protocol, API overview. Links to
+  the setup guide for config/redaction details instead of duplicating them.
 - `packages/plugin-otel/AGENTS.md` -- this file (architecture, internals, agent context)
 
 This applies to any change that affects:
@@ -178,4 +180,4 @@ This applies to any change that affects:
 
 Do not let implementation drift from documentation. Treat docs as part of the
 implementation -- if the code changes, the docs change in the same commit.
-When in doubt, update both files. A stale doc is worse than no doc.
+When in doubt, update the relevant files. A stale doc is worse than no doc.

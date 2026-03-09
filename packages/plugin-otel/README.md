@@ -10,61 +10,22 @@ Add `@gfxlabs/opencode-plugins-otel` to the `plugin` array in your opencode conf
 // ~/.config/opencode/opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@gfxlabs/opencode-plugins-otel"]
+  "plugin": ["@gfxlabs/opencode-plugins-otel@latest"]
 }
 ```
 
-If you already have a `plugin` array, append `"@gfxlabs/opencode-plugins-otel"` to it.
+Then create an `otel.json` config file to enable and configure the plugin. See the **[Setup Instructions](docs/SETUP-INSTRUCTIONS.md)** for full configuration reference, examples, environment variable overrides, and redaction levels.
 
-## Quick start
-
-**2. Create an `otel.json` config file:**
-
-**`.opencode/otel.json`** (project-level)
+Minimal example:
 
 ```json
+// .opencode/otel.json
 {
   "$schema": "https://raw.githubusercontent.com/gfx-labs/opencode-plugins/master/packages/plugin-otel/otel.schema.json",
   "enabled": true,
   "endpoint": "https://otel-collector.example.com"
 }
 ```
-
-The plugin is disabled by default. You must explicitly enable it via config or environment variable.
-
-## Configuration
-
-Configuration is loaded from two JSON files and merged (project overrides global per-key; headers are deep-merged):
-
-| Location | Purpose |
-|---|---|
-| `~/.config/opencode/otel.json` | Global user settings (applied to all projects) |
-| `<project>/.opencode/otel.json` | Project-specific overrides |
-
-All fields are optional in both files. See [Setup Instructions](docs/SETUP-INSTRUCTIONS.md) for full examples.
-
-### Config fields
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `false` | Enable the plugin |
-| `endpoint` | `string` | | OTLP/HTTP base URL. Logs are sent to `<endpoint>/v1/logs` |
-| `headers` | `Record<string, string>` | | Extra HTTP headers (e.g. auth tokens) |
-| `redact` | `"none" \| "light" \| "full"` | `"full"` | Redaction level. See [Redaction](#redaction) below |
-| `user_id` | `string` | | User identifier. Sent as `user.id` resource attribute |
-| `organization` | `string` | `"unset"` | Organization ID |
-| `environment` | `string` | `"default"` | Deployment environment name |
-| `project_name` | `string` | | Human-readable project name. Sent as `project.name` resource attribute |
-
-### Environment variable overrides
-
-Environment variables take precedence over config file values.
-
-| Variable | Description |
-|---|---|
-| `OPENCODE_OTEL_ENABLED` | Set to `"1"` to enable the plugin |
-| `OPENCODE_OTEL_ENDPOINT` | OTLP/HTTP base URL |
-| `OPENCODE_OTEL_HEADERS` | Comma-separated `key=value` pairs for extra headers |
 
 ## What gets tracked
 
@@ -112,15 +73,6 @@ The plugin listens to opencode platform events and emits corresponding OTLP log 
 | `vcs.branch.updated` | Git branch changed |
 | `tool.executed` | A tool finished execution (via `tool.execute.after` hook) |
 
-### Session summary stats
-
-Session events (`session.created`, `session.updated`, `session.deleted`) include cumulative diff statistics when available:
-
-- `session.summary.additions` -- total lines added
-- `session.summary.deletions` -- total lines deleted
-- `session.summary.files` -- number of files changed
-- `session.share` -- whether the session is shared
-
 ### Token and cost tracking
 
 Cost and token data is only emitted on the `api.request` synthetic event, which fires exactly once per completed LLM call (deduplicated by message ID). This includes:
@@ -130,15 +82,6 @@ Cost and token data is only emitted on the `api.request` synthetic event, which 
 - Estimated cost from per-token rates via `client.provider.list()` (fallback when provider cost is 0)
 - Duration in milliseconds
 - Finish reason: `finish`
-- Message ID: `message.id` (for dedup/correlation)
-
-The `message.updated` event for assistant messages does not carry cost or token fields -- it records structural metadata only (model, mode, finish reason, timing, summary).
-
-For user messages, the plugin additionally records:
-
-- System prompt length: `message.system.length`
-- Enabled tools count: `message.tools.count`
-- Context diff stats: `message.summary.diffs`, `message.summary.additions`, `message.summary.deletions`
 
 ### Message part details
 
@@ -168,69 +111,6 @@ The `tool.executed` event (from the `tool.execute.after` hook) captures:
 - `tool.output_lines` -- line count of tool output
 - `tool.has_metadata` -- whether metadata was returned
 
-## Batching and delivery
-
-- Records are buffered and flushed when either **100 records** accumulate or **5 seconds** elapse.
-- On terminal events (`session.idle`, `session.deleted`, `session.error`), the plugin drains all buffered and in-flight requests before returning to ensure delivery before process exit.
-- Failed sends are logged via `client.app.log` but do not throw or block the session.
-
-## Redaction
-
-### Content never sent
-
-LLM-generated content is **never sent** regardless of redaction level. This includes:
-
-- Assistant text and reasoning content
-- Tool error messages
-- Session/message error messages
-- Retry error messages
-
-These fields are omitted entirely (not replaced with a placeholder). Only structural metrics like length and line count are sent.
-
-### User prompt text
-
-User prompt text is the one exception to the content policy above. The `user.prompt` event includes `prompt.content`, which contains the actual prompt text wrapped in `rt()`. This means:
-
-- At `"full"` (default) and `"light"`: prompt content is `<REDACTED>`
-- At `"none"`: prompt content is sent as-is
-
-Only prompts from root sessions are emitted. Subtask and subagent sessions (those with a `parentID`) are excluded so that system-generated prompts do not appear as user input.
-
-This allows usage dashboards to display recent user prompts when redaction is disabled.
-
-### Redaction levels
-
-The `redact` config field controls how much structural metadata is sent. Default: `"full"`.
-
-For backwards compatibility, `redact: true` is treated as `"full"` and `redact: false` as `"none"`.
-
-| Level | Titles & descriptions | Structural metadata | Numeric/IDs |
-|---|---|---|---|
-| `"full"` (default) | `<REDACTED>` | `<REDACTED>` | Sent |
-| `"light"` | `<REDACTED>` | Sent | Sent |
-| `"none"` | Sent | Sent | Sent |
-
-**Titles, descriptions, VCS, and prompt content** (redacted at `light` and `full`, sent only at `none`):
-- Session titles (`session.title`)
-- Tool result titles (`tool.title`)
-- Subtask descriptions (`subtask.description`)
-- Permission titles (`permission.title`)
-- File names (`file.name`)
-- Git branch names (`vcs.branch`, `vcs.ref.head.name`)
-- Git remote URL (`vcs.repository.url.full`)
-- User prompt content (`prompt.content`)
-
-**Structural metadata** (redacted at `full` only):
-- Tool names (`tool.name`)
-- Command arguments (`command.arguments`)
-
-**Always sent** (never redacted):
-- Token counts, cost values, timing data
-- IDs, types, states, status codes
-- Numeric metrics (lengths, line counts, sizes)
-
-**Note:** Filesystem paths are never sent, regardless of redaction level. The plugin does not transmit working directories, file paths, or project worktree paths.
-
 ## Protocol
 
 The plugin speaks **OTLP/HTTP JSON** (not gRPC, not Protobuf). Log records are sent as `POST` requests to `<endpoint>/v1/logs` with `Content-Type: application/json`.
@@ -257,7 +137,7 @@ import { OtelPlugin } from "@gfxlabs/opencode-plugins-otel"
 ## Build
 
 ```bash
-npm run build -w packages/plugin-otel
+yarn workspace @gfxlabs/opencode-plugins-otel build
 ```
 
 Output: `dist/index.mjs` (ESM) + `dist/index.d.mts` (types). ESM-only, no CJS.
