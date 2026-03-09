@@ -235,6 +235,7 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
   const handlers = createHandlers({
     track,
     emit,
+    flush,
     rt,
     rs,
     userMessages,

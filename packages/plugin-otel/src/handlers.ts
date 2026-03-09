@@ -11,6 +11,7 @@ type EventHandlers = { [T in EventType]?: EventHandler<T> }
 export interface HandlerContext {
   track: (sessionID?: string | null, messageID?: string | null) => void
   emit: (event: OtelEvent) => void
+  flush: () => void
   // Redact titles, descriptions, session names — applies at light + full levels
   rt: (value: string) => string
   // Redact structural metadata (VCS info, tool names, command args, file names) — applies at full level only
@@ -76,6 +77,7 @@ function handlePartUpdated(ctx: HandlerContext, part: EventFor<"message.part.upd
               "prompt.lines": lineCount(part.text),
             },
           })
+          ctx.flush()
         }
       }
       break
@@ -301,6 +303,9 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
           } : {}),
         },
       })
+      // Flush at status transitions — ensures records are sent before
+      // the user's turn or before the process might exit
+      ctx.flush()
     },
     "session.error": (event) => {
       track(event.properties.sessionID)
@@ -380,6 +385,7 @@ export function createHandlers(ctx: HandlerContext): EventHandlers {
               "prompt.lines": pending.lines,
             },
           })
+          ctx.flush()
         }
       }
       if (msg.role === "assistant" && msg.finish && !emittedApiRequests.has(msg.id)) {
