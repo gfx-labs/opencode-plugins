@@ -1,5 +1,5 @@
 import type { Event } from "@opencode-ai/sdk"
-import type { EmitContext } from "./index.js"
+import type { EmitContext } from "./context.js"
 import {
   sessionCreated, sessionUpdated, sessionDeleted, sessionIdle,
   sessionCompacted, sessionStatus, sessionError, sessionDiff,

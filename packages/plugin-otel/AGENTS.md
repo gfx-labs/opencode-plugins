@@ -7,7 +7,7 @@ opencode-ai platform. It captures session lifecycle, message flow, tool executio
 and cost metrics as OTLP/HTTP JSON log records and ships them to any OTel-compatible
 collector.
 
-- **Source files:** `src/index.ts`, `src/config.ts`, `src/handlers.ts`, `src/otel.ts`, `src/git.ts`
+- **Source files:** `src/index.ts`, `src/context.ts`, `src/events.ts`, `src/handlers.ts`, `src/config.ts`, `src/otel.ts`, `src/git.ts`
 - **Single export:** `OtelPlugin` (type: `Plugin` from `@opencode-ai/plugin`)
 - **Build:** `pkgroll` producing ESM-only output (`dist/index.mjs` + `dist/index.d.mts`)
 - **No runtime dependencies** -- only a peer dep on `@opencode-ai/plugin >=1.0.0`
@@ -22,18 +22,37 @@ The plugin is structured as a single async factory function (`OtelPlugin`) that:
 4. Builds OTLP resource attributes (including git info when available)
 5. Returns two hooks: `event` and `tool.execute.after`
 
+### File layout and import graph
+
+```
+index.ts        Entry point. Config loading, resource attrs, EmitContext construction, hook wiring.
+context.ts      EmitContext class. Owns transport, buffering, tracking, dedup, redaction, cost state.
+events.ts       21 typed builder functions (sessionCreated, textPart, apiRequest, etc.), OtelEvent union, flattenEvent().
+handlers.ts     createHandlers() and DRAIN_EVENTS. Switches over event types, calls builders, delegates to EmitContext.
+config.ts       OtelConfig, RedactLevel, parseConfig, loadConfig, CONFIG_FIELDS.
+otel.ts         OTLP types, attrs(), makeLogRecord(), buildExportRequest(), lineCount(), safeStringifyLength().
+git.ts          GitInfo, detectGitInfo(). Reads .git files directly, no subprocesses.
+```
+
+Import DAG (no cycles):
+```
+index → context, handlers, events, otel, config, git
+handlers → context, events, otel
+context → events, otel, config
+events → otel
+```
+
 ### Key internal components
 
-| Component | Lines (approx) | Purpose |
+| Component | File | Purpose |
 |---|---|---|
-| `OtelConfig` interface + `parseConfig` / `loadConfig` | 1-100 | Config loading, validation, two-layer merge |
-| `OtelLogRecord` / `OtelExportLogsRequest` interfaces | 20-50 | OTLP/HTTP JSON wire format types |
-| `detectGitInfo` | ~80 | Reads `.git` directory to detect remote URL, branch, commit SHA (no subprocesses) |
-| Helper functions (`attrs`, `makeLogRecord`, `buildExportRequest`, `str`, `bool`, `strRecord`, `lineCount`, `safeStringifyLength`) | 50-160 | Type-safe attribute construction, record building, size/line measurement |
-| Buffer/flush/drain system (`enqueue`, `flush`, `drain`, `send`) | ~50 | Batched delivery: 100-record or 5-second flush, drain on terminal events |
-| `getModelCosts` / `estimateCost` | ~40 | Lazy-loaded per-token cost rates from `client.provider.list()` |
-| Event handler (`event` hook) | ~350 | Switch over 20 event types, emitting OTLP records |
-| `tool.execute.after` hook | ~10 | Post-tool-execution telemetry |
+| `OtelPlugin` factory | `index.ts` | Async plugin factory: loads config, builds resource attrs, constructs `EmitContext`, returns hooks |
+| `EmitContext` class | `context.ts` | Central state holder: transport (URL, headers), buffer/flush/drain, session/message tracking, dedup sets, redaction helpers (`rt`/`rs`), cost estimation |
+| Typed event builders | `events.ts` | 21 named functions (`sessionCreated()`, `apiRequest()`, `textPart()`, etc.) returning `OtelEvent` discriminated union members. `flattenEvent()` converts to `{ type, attrs }` |
+| `createHandlers` | `handlers.ts` | Returns `{ event, toolExecuteAfter }` hooks. The event hook switches over ~20 event types and calls builders + `EmitContext.emit()` |
+| `OtelConfig` + `loadConfig` | `config.ts` | Config loading, validation, two-layer merge (project + global) |
+| OTLP wire types + helpers | `otel.ts` | `attrs()`, `makeLogRecord()`, `buildExportRequest()`, `lineCount()`, `safeStringifyLength()` |
+| `detectGitInfo` | `git.ts` | Reads `.git` directory for remote URL, branch, commit SHA |
 
 ### Event types handled
 
@@ -65,10 +84,15 @@ The plugin computes derived metrics for telemetry:
 
 ### Batching and delivery
 
-- Records are buffered in-memory (array splice pattern)
+- Records are buffered in-memory (array splice pattern) inside `EmitContext`
 - Flush triggers: buffer reaches 100 records OR 5-second timer fires
+- `flush()` is also called at natural boundaries: after `user.prompt` emission,
+  on `session.status` transitions
 - `drain()` is called on terminal events (`session.idle`, `session.deleted`, `session.error`)
   to await all in-flight `fetch` calls before the process exits
+- `process.on("beforeExit")` calls `flush()` as a safety net -- opencode disposes
+  without awaiting async event handlers, so `drain()` may not complete
+- `fetch` uses `keepalive: true` so in-flight requests survive process exit
 - Failed sends log via `client.app.log` but never throw
 
 ### Content policy
@@ -122,14 +146,14 @@ in a `Map<string, ModelCost>`.
 ## Build and typecheck
 
 ```bash
-# Build this package only
-npm run build -w packages/plugin-otel
+# Build this package only (from repo root)
+yarn workspace @gfxlabs/opencode-plugins-otel build
 
 # Typecheck the whole monorepo (includes this package via project references)
-npm run typecheck
+yarn typecheck
 
 # Clean build artifacts
-npm run clean -w packages/plugin-otel
+yarn workspace @gfxlabs/opencode-plugins-otel clean
 ```
 
 ## Documentation maintenance rule
