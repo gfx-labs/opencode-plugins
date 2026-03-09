@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.10
+
+### Patch Changes
+
+- [`cd5cc12`](https://github.com/gfx-labs/opencode-plugins/commit/cd5cc123b1f403027b9d01a98048c865e5a37759) Thanks [@elee1766](https://github.com/elee1766)! - fix(otel): flush buffered records on beforeExit to prevent data loss when opencode disposes the instance without awaiting plugin event handlers
+
 ## 0.1.9
 
 ### Patch Changes
