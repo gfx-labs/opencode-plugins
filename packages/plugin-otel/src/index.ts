@@ -244,6 +244,16 @@ export const OtelPlugin: Plugin = async ({ project, directory, client }) => {
     estimateCost,
   })
 
+  // Ensure buffered records are flushed before the process exits.
+  // opencode may not await the plugin's event handler on session.idle
+  // before disposing the instance, so drain() in the event hook can be
+  // skipped. beforeExit fires when the event loop empties and gives us
+  // a chance to flush synchronously (the fetch with keepalive: true
+  // will outlive the process).
+  process.on("beforeExit", () => {
+    flush()
+  })
+
   return {
     event: async ({ event }) => {
       const handler = handlers[event.type] as ((event: Event) => Promise<void> | void) | undefined
