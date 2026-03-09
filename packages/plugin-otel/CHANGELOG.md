@@ -1,5 +1,11 @@
 # @gfxlabs/opencode-plugins-otel
 
+## 0.1.11
+
+### Patch Changes
+
+- [`3d425e4`](https://github.com/gfx-labs/opencode-plugins/commit/3d425e48c0371a1ed8046007f253b28f7764347a) Thanks [@elee1766](https://github.com/elee1766)! - Extract EmitContext class to dedicated context.ts module for cleaner separation of transport, buffering, and dedup state from the plugin entry point.
+
 ## 0.1.10
 
 ### Patch Changes
