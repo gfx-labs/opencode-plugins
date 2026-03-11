@@ -18,6 +18,9 @@ export interface Delegation {
   title?: string
   description?: string
   result?: string
+  // Cached at creation time so persist and read use the same path
+  rootSessionID: string
+  persistedPath?: string
 }
 
 export interface DelegationProgress {

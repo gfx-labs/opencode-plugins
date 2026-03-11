@@ -7,7 +7,6 @@ import type { Event, Model } from "@opencode-ai/sdk"
 import type { OpencodeClient, DelegationListItem } from "./types.js"
 import { createLogger } from "./types.js"
 import { DelegationManager } from "./manager.js"
-import { parseAgentMode, parseAgentWriteCapability } from "./agents.js"
 
 // Detect project ID from git root commit hash for cross-worktree consistency
 async function getProjectId(directory: string): Promise<string> {
@@ -37,25 +36,16 @@ You have tools for parallel background work:
 - \`delegation_read(id)\` - Retrieve completed result
 - \`delegation_list()\` - List delegations (use sparingly)
 
-## Delegation Routing
-
-Agents route based on their permissions:
-
-| Agent Type | Tool | Why |
-|------------|------|-----|
-| Read-only (researcher, explore) | \`delegate\` | Background session, async |
-| Write-capable (coder, scribe) | \`task\` | Native task, preserves undo/branching |
-
-**Read-only agents** have edit="deny", write="deny", bash={"*":"deny"}.
-**Write-capable agents** have any write tool enabled.
-
 ## How It Works
 
-1. For read-only agents: Call \`delegate\` with detailed prompt
-2. For write-capable agents: Call \`task\` with detailed prompt
-3. Continue productive work while it runs
-4. Receive notification when complete
-5. Call \`delegation_read(id)\` to retrieve results
+1. Call \`delegate\` with a detailed prompt and any agent name
+2. Continue productive work while it runs
+3. Receive notification when complete
+4. Call \`delegation_read(id)\` to retrieve results
+
+Both read-only agents (explore, researcher) and write-capable agents (coder, scribe)
+can be delegated. Write-capable agents will have full edit/write/bash access in their
+background session.
 
 ## Critical Constraints
 
@@ -63,8 +53,6 @@ Agents route based on their permissions:
 You WILL be notified via \`<task-notification>\`. Polling wastes tokens.
 
 **NEVER wait idle.** Always have productive work while delegations run.
-
-**Using wrong tool will fail fast with guidance.**
 
 </delegation-system>
 </task-notification>`
@@ -147,6 +135,7 @@ Use this for:
 - Research tasks (will be auto-saved)
 - Parallel work that can run in background
 - Any task where you want persistent, retrievable output
+- Write-capable tasks (editing files, running commands) in parallel
 
 On completion, a notification will arrive with the ID, title, description, and result.
 Use \`delegation_read\` with the ID to retrieve the result again if it is lost during compaction.`,
@@ -156,7 +145,7 @@ Use \`delegation_read\` with the ID to retrieve the result again if it is lost d
             .describe("The full detailed prompt for the agent. Must be in English."),
           agent: tool.schema
             .string()
-            .describe("Agent to delegate to (e.g. \"explore\", \"researcher\")."),
+            .describe("Agent to delegate to (e.g. \"explore\", \"researcher\", \"coder\")."),
         },
         async execute(args, toolCtx) {
           if (!toolCtx?.sessionID) return "delegate requires sessionID. This is a system error."
@@ -213,30 +202,6 @@ Shows both running and completed delegations.`,
           return `## Delegations\n\n${lines.join("\n")}`
         },
       }),
-    },
-
-    // Prevent read-only agents from using native task tool
-    "tool.execute.before": async (
-      input: { tool: string; sessionID: string; callID: string },
-      output: { args?: { subagent_type?: string } },
-    ) => {
-      if (input.tool !== "task") return
-
-      const agentName = output.args?.subagent_type
-      if (!agentName) return
-
-      const { isSubAgent } = await parseAgentMode(client as OpencodeClient, agentName, log)
-      if (!isSubAgent) return
-
-      const { isReadOnly } = await parseAgentWriteCapability(client as OpencodeClient, agentName, log)
-      if (!isReadOnly) return
-
-      throw new Error(
-        `Agent '${agentName}' is read-only and should use the delegate tool for async background execution.\n\n` +
-        `Read-only agents have: edit="deny", write="deny", bash={"*":"deny"}\n` +
-        `Use delegate for read-only agents (researcher, explore).\n` +
-        `Use task for write-capable agents (coder, scribe).`,
-      )
     },
 
     // Inject delegation rules into system prompt

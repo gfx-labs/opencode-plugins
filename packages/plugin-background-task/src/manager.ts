@@ -91,6 +91,10 @@ export class DelegationManager {
       )
     }
 
+    // Resolve root session ID once and cache it so persist and read
+    // always use the same directory regardless of which session calls them
+    const rootSessionID = await this.getRootSessionID(input.parentSessionID)
+
     // Create isolated session
     const sessionResult = await this.client.session.create({
       body: {
@@ -114,6 +118,7 @@ export class DelegationManager {
       status: "running",
       startedAt: new Date(),
       progress: { toolCalls: 0, lastUpdate: new Date() },
+      rootSessionID,
     }
 
     this.delegations.set(id, delegation)
@@ -132,8 +137,9 @@ export class DelegationManager {
       }
     }, MAX_RUN_TIME_MS + 5_000)
 
-    // Ensure storage dir exists
-    await this.ensureDelegationsDir(input.parentSessionID)
+    // Ensure storage dir exists using the cached root
+    const delegationsDir = join(this.baseDir, rootSessionID)
+    await mkdir(delegationsDir, { recursive: true })
 
     // Fire prompt -- disable recursive delegation and state tools
     this.client.session
@@ -257,7 +263,10 @@ export class DelegationManager {
 
   private async persistOutput(delegation: Delegation, content: string): Promise<void> {
     try {
-      const dir = await this.ensureDelegationsDir(delegation.parentSessionID)
+      // Use the cached rootSessionID so the file always lands in the same
+      // directory that was resolved at delegation creation time
+      const dir = join(this.baseDir, delegation.rootSessionID)
+      await mkdir(dir, { recursive: true })
       const filePath = join(dir, `${delegation.id}.md`)
 
       const title = delegation.title || delegation.id
@@ -277,6 +286,7 @@ ${description}
 
 `
       await writeFile(filePath, header + content, "utf8")
+      delegation.persistedPath = filePath
       await this.debugLog(`persisted output to ${filePath}`)
     } catch (error) {
       await this.debugLog(
@@ -347,36 +357,63 @@ ${description}
     }
   }
 
-  // Read a delegation's persisted output, blocking if still running
-  async readOutput(sessionID: string, id: string): Promise<string> {
+  // Try to read a delegation's persisted file, checking multiple paths
+  private async tryReadFile(sessionID: string, id: string): Promise<string | undefined> {
+    // Path 1: resolve via the caller's session
     try {
       const dir = await this.getDelegationsDir(sessionID)
-      const filePath = join(dir, `${id}.md`)
-      return await readFile(filePath, "utf8")
+      return await readFile(join(dir, `${id}.md`), "utf8")
     } catch {
-      // file doesn't exist yet
+      // not found at this path
     }
 
-    // Check if running in memory
+    // Path 2: use the cached persistedPath from the in-memory delegation
+    const delegation = this.delegations.get(id)
+    if (delegation?.persistedPath) {
+      try {
+        return await readFile(delegation.persistedPath, "utf8")
+      } catch {
+        // not found at cached path either
+      }
+    }
+
+    // Path 3: use the cached rootSessionID to derive the directory
+    if (delegation?.rootSessionID) {
+      try {
+        const dir = join(this.baseDir, delegation.rootSessionID)
+        return await readFile(join(dir, `${id}.md`), "utf8")
+      } catch {
+        // not found
+      }
+    }
+
+    return undefined
+  }
+
+  // Read a delegation's persisted output, blocking if still running
+  async readOutput(sessionID: string, id: string): Promise<string> {
+    // Fast path: file already exists
+    const cached = await this.tryReadFile(sessionID, id)
+    if (cached) return cached
+
+    // Check in-memory state
     const delegation = this.delegations.get(id)
     if (delegation) {
       if (delegation.status === "running") {
         await this.debugLog(`readOutput: waiting for delegation ${id} to complete`)
         await this.waitForCompletion(id)
 
-        // Retry file read after waiting
-        try {
-          const dir = await this.getDelegationsDir(sessionID)
-          return await readFile(join(dir, `${id}.md`), "utf8")
-        } catch {
-          // still no file
-        }
+        // Retry file read after completion
+        const afterWait = await this.tryReadFile(sessionID, id)
+        if (afterWait) return afterWait
+      }
 
-        const updated = this.delegations.get(id)
-        if (updated && updated.status !== "running") {
-          const title = updated.title || updated.id
-          return `Delegation "${title}" ended with status: ${updated.status}. ${updated.error || ""}`
-        }
+      // Delegation exists in memory but file is missing -- return what we have
+      if (delegation.result) return delegation.result
+
+      if (delegation.status !== "running") {
+        const title = delegation.title || delegation.id
+        return `Delegation "${title}" ended with status: ${delegation.status}. ${delegation.error || ""}`
       }
     }
 
