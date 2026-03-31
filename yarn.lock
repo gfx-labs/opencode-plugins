@@ -639,17 +639,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@gfxlabs/opencode-plugins-background-task@workspace:packages/plugin-background-task":
-  version: 0.0.0-use.local
-  resolution: "@gfxlabs/opencode-plugins-background-task@workspace:packages/plugin-background-task"
-  dependencies:
-    "@opencode-ai/plugin": "npm:^1.2.0"
-    "@opencode-ai/sdk": "npm:^1.2.0"
-  peerDependencies:
-    "@opencode-ai/plugin": ">=1.0.0"
-  languageName: unknown
-  linkType: soft
-
 "@gfxlabs/opencode-plugins-happynow@workspace:packages/plugin-happynow":
   version: 0.0.0-use.local
   resolution: "@gfxlabs/opencode-plugins-happynow@workspace:packages/plugin-happynow"
@@ -2107,7 +2096,7 @@ __metadata:
     "@changesets/changelog-github": "npm:^0.6.0"
     "@changesets/cli": "npm:^2.30.0"
     "@types/node": "npm:^22.0.0"
-    pkgroll: "npm:^2.0.0"
+    pkgroll: "npm:^2.27.0"
     typescript: "npm:^5.7.0"
   languageName: unknown
   linkType: soft
@@ -2242,7 +2231,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pkgroll@npm:^2.0.0":
+"pkgroll@npm:^2.27.0":
   version: 2.27.0
   resolution: "pkgroll@npm:2.27.0"
   dependencies:

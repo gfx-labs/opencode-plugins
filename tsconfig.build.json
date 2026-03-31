@@ -2,7 +2,6 @@
   "files": [],
   "references": [
     { "path": "packages/plugin-otel" },
-    { "path": "packages/plugin-happynow" },
-    { "path": "packages/plugin-background-task" }
+    { "path": "packages/plugin-happynow" }
   ]
 }
